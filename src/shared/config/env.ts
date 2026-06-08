@@ -1,0 +1,62 @@
+import { resolve } from 'node:path'
+
+import { config as loadDotenv } from 'dotenv'
+import { z } from 'zod'
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
+  PORT: z.coerce.number().int().positive().default(4000),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  AUTH_CONTEXT_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  TRIAL_DURATION_DAYS: z.coerce.number().int().positive().default(7),
+  SUBSCRIPTION_PERIOD_DAYS: z.coerce.number().int().positive().default(30),
+  REDIS_URL: z.string().min(1),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  INTEGRATIONS_LIST_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  META_APP_ID: z.string().default(''),
+  META_APP_SECRET: z.string().default(''),
+  WHATSAPP_GRAPH_VERSION: z.string().default('v25.0'),
+  WEBHOOK_VERIFY_TOKEN: z.string().default(''),
+})
+
+export type Env = z.infer<typeof envSchema>
+
+let cachedEnv: Env | null = null
+let dotenvLoaded = false
+
+function ensureDotenvLoaded(): void {
+  if (dotenvLoaded) {
+    return
+  }
+
+  loadDotenv({ path: resolve(process.cwd(), '.env') })
+  dotenvLoaded = true
+}
+
+export function loadEnv(): Env {
+  ensureDotenvLoaded()
+
+  if (cachedEnv !== null) {
+    return cachedEnv
+  }
+
+  const parsed = envSchema.safeParse(process.env)
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
+    throw new Error(`Invalid environment configuration: ${details}`)
+  }
+
+  cachedEnv = parsed.data
+  return cachedEnv
+}
+
+export function getCorsOrigins(env: Env): string[] {
+  return env.CORS_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0)
+}
