@@ -1,9 +1,21 @@
-import { Redis } from 'ioredis'
+import { Redis, type RedisOptions } from 'ioredis'
 
 import { loadEnv } from '../config/index.js'
 import { getLogger } from '../logger/index.js'
 
 let redisClient: Redis | null = null
+
+function createRedisOptions(redisUrl: string): RedisOptions {
+  const useTls =
+    redisUrl.startsWith('rediss://') ||
+    /(?:^|@)[^/]*upstash\.io/i.test(redisUrl)
+
+  return {
+    maxRetriesPerRequest: 3,
+    lazyConnect: true,
+    ...(useTls ? { tls: {} } : {}),
+  }
+}
 
 export function getRedisClient(): Redis {
   if (redisClient !== null) {
@@ -11,10 +23,7 @@ export function getRedisClient(): Redis {
   }
 
   const env = loadEnv()
-  redisClient = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: 3,
-    lazyConnect: true,
-  })
+  redisClient = new Redis(env.REDIS_URL, createRedisOptions(env.REDIS_URL))
 
   redisClient.on('error', (error: Error) => {
     getLogger().error({ err: error }, 'Redis connection error')

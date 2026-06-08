@@ -33,11 +33,15 @@ export async function setOrganizationSettingsCache(
 ): Promise<void> {
   const redis = getRedisClient()
 
-  if (redis.status !== 'ready') {
-    await redis.connect()
-  }
+  try {
+    if (redis.status !== 'ready') {
+      await redis.connect()
+    }
 
-  await redis.set(`${CACHE_KEY_PREFIX}${organizationId}`, JSON.stringify(settings), 'EX', ttlSeconds)
+    await redis.set(`${CACHE_KEY_PREFIX}${organizationId}`, JSON.stringify(settings), 'EX', ttlSeconds)
+  } catch {
+    // Cache is best-effort.
+  }
 }
 
 export async function invalidateOrganizationSettingsCache(organizationId: string): Promise<void> {

@@ -27,16 +27,20 @@ export async function setCachedAuthContext(context: AuthContext): Promise<void> 
   const env = loadEnv()
   const redis = getRedisClient()
 
-  if (redis.status !== 'ready') {
-    await redis.connect()
-  }
+  try {
+    if (redis.status !== 'ready') {
+      await redis.connect()
+    }
 
-  await redis.set(
-    `${CACHE_KEY_PREFIX}${context.organizationId}`,
-    JSON.stringify(context),
-    'EX',
-    env.AUTH_CONTEXT_CACHE_TTL_SECONDS,
-  )
+    await redis.set(
+      `${CACHE_KEY_PREFIX}${context.organizationId}`,
+      JSON.stringify(context),
+      'EX',
+      env.AUTH_CONTEXT_CACHE_TTL_SECONDS,
+    )
+  } catch {
+    // Cache is best-effort — login must succeed without Redis.
+  }
 }
 
 export async function invalidateAuthContextCache(organizationId: string): Promise<void> {

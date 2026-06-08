@@ -49,16 +49,20 @@ export async function setIntegrationsListCache(
 ): Promise<void> {
   const redis = getRedisClient()
 
-  if (redis.status !== 'ready') {
-    await redis.connect()
-  }
+  try {
+    if (redis.status !== 'ready') {
+      await redis.connect()
+    }
 
-  await redis.set(
-    cacheKey(organizationId),
-    JSON.stringify(integrations),
-    'EX',
-    getCacheTtlSeconds(),
-  )
+    await redis.set(
+      cacheKey(organizationId),
+      JSON.stringify(integrations),
+      'EX',
+      getCacheTtlSeconds(),
+    )
+  } catch {
+    // Cache is best-effort.
+  }
 }
 
 export async function invalidateIntegrationsListCache(organizationId: string): Promise<void> {
