@@ -1,4 +1,3 @@
-import { invalidateAuthContextCache } from '../../shared/auth/index.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { resolveEffectiveSubscriptionStatus, toSubscriptionResponse } from '../../shared/subscription/index.js'
 import { AppError } from '../../shared/errors/index.js'
@@ -47,8 +46,6 @@ export async function activateSubscription(organizationId: string) {
 
   const periodEndsAt = addDays(new Date(), env.SUBSCRIPTION_PERIOD_DAYS).toISOString()
   const updated = await subscriptionRepository.activatePaidSubscription(organizationId, periodEndsAt)
-
-  await invalidateAuthContextCache(organizationId)
 
   return toSubscriptionResponse(updated, updated.plan)
 }

@@ -1,12 +1,7 @@
--- Migration 002: one business-details profile per organization (account)
--- RLS policies are defined in 003_rls_policies.sql
-
 CREATE TABLE IF NOT EXISTS organization_business_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL UNIQUE REFERENCES organizations (id) ON DELETE CASCADE,
-  -- A: What is your brand name and what do you sell?
   brand_and_products TEXT,
-  -- B: What tone do you use when talking to your customers?
   customer_tone TEXT CHECK (
     customer_tone IS NULL
     OR customer_tone IN (
@@ -17,9 +12,7 @@ CREATE TABLE IF NOT EXISTS organization_business_profiles (
       'fully_regional_language'
     )
   ),
-  -- C: Sample reply for "Is this product available?"
   sample_customer_reply TEXT,
-  -- D: Most common customer conversations
   common_conversation_types TEXT CHECK (
     common_conversation_types IS NULL
     OR common_conversation_types IN (
@@ -30,7 +23,6 @@ CREATE TABLE IF NOT EXISTS organization_business_profiles (
       'all_of_the_above'
     )
   ),
-  -- E: Language customers mostly message in
   customer_message_language TEXT CHECK (
     customer_message_language IS NULL
     OR customer_message_language IN (
@@ -41,9 +33,7 @@ CREATE TABLE IF NOT EXISTS organization_business_profiles (
       'mix_of_everything'
     )
   ),
-  -- F: Words, phrases or offers you always use
   signature_phrases TEXT,
-  -- G: What should the AI never say
   ai_restrictions TEXT CHECK (
     ai_restrictions IS NULL
     OR ai_restrictions IN (

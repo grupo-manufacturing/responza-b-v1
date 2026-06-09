@@ -1,10 +1,10 @@
 import { Router } from 'express'
 
 import { validateRequest } from '../../shared/middleware/index.js'
-import type { IntegrationPlatform } from './integrations.constants.js'
 import {
-  integrationConnectBodySchema,
+  connectIntegrationBodySchema,
   integrationPlatformParamsSchema,
+  type ConnectIntegrationBody,
 } from './integrations.schemas.js'
 import * as integrationsService from './integrations.service.js'
 
@@ -12,13 +12,8 @@ export function createIntegrationsRouter(): Router {
   const router = Router()
 
   router.get('/', (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
-
     void integrationsService
-      .listIntegrations(req.auth)
+      .listIntegrations(req.auth!)
       .then((result) => {
         res.status(200).json(result)
       })
@@ -27,20 +22,12 @@ export function createIntegrationsRouter(): Router {
 
   router.post(
     '/:platform/connect',
-    validateRequest({
-      params: integrationPlatformParamsSchema,
-      body: integrationConnectBodySchema,
-    }),
+    validateRequest({ params: integrationPlatformParamsSchema, body: connectIntegrationBodySchema }),
     (req, res, next) => {
-      if (req.auth === undefined) {
-        next()
-        return
-      }
-
-      const { platform } = req.params as { platform: IntegrationPlatform }
+      const { platform } = req.params as { platform: string }
 
       void integrationsService
-        .connectIntegration(req.auth, platform, req.body)
+        .connectIntegration(req.auth!, platform, req.body as ConnectIntegrationBody)
         .then((result) => {
           res.status(200).json(result)
         })
@@ -52,15 +39,10 @@ export function createIntegrationsRouter(): Router {
     '/:platform',
     validateRequest({ params: integrationPlatformParamsSchema }),
     (req, res, next) => {
-      if (req.auth === undefined) {
-        next()
-        return
-      }
-
-      const { platform } = req.params as { platform: IntegrationPlatform }
+      const { platform } = req.params as { platform: string }
 
       void integrationsService
-        .disconnectIntegration(req.auth, platform)
+        .disconnectIntegration(req.auth!, platform)
         .then((result) => {
           res.status(200).json(result)
         })

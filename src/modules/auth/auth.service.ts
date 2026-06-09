@@ -1,7 +1,4 @@
 import {
-  getCachedAuthContext,
-  invalidateAuthContextCache,
-  setCachedAuthContext,
   type AuthContext,
   type AuthSessionPayload,
 } from '../../shared/auth/index.js'
@@ -35,13 +32,10 @@ async function buildSessionPayload(
   expiresIn: number,
   organization: OrganizationRecord,
 ): Promise<AuthSessionPayload> {
-  const auth = toAuthContext(organization)
   const [businessDetails, subscription] = await Promise.all([
     authRepository.findBusinessDetailsStatus(organization.id),
     getSubscriptionForOrganization(organization.id),
   ])
-
-  await setCachedAuthContext(auth)
 
   return {
     accessToken,
@@ -58,19 +52,12 @@ async function buildSessionPayload(
 }
 
 async function loadAuthContext(organizationId: string): Promise<AuthContext> {
-  const cached = await getCachedAuthContext(organizationId)
-  if (cached !== null) {
-    return cached
-  }
-
   const organization = await authRepository.findOrganizationById(organizationId)
   if (organization === null) {
     throw new AppError(403, 'FORBIDDEN', 'No account found. Please register first.')
   }
 
-  const context = toAuthContext(organization)
-  await setCachedAuthContext(context)
-  return context
+  return toAuthContext(organization)
 }
 
 export async function resolveAuthContextFromAccessToken(accessToken: string): Promise<AuthContext> {
@@ -180,8 +167,4 @@ export async function getCurrentOrganization(auth: AuthContext): Promise<AuthSes
       completedAt: businessDetails?.completed_at ?? null,
     },
   }
-}
-
-export async function invalidateOrganizationAuthCache(organizationId: string): Promise<void> {
-  await invalidateAuthContextCache(organizationId)
 }

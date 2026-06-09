@@ -1,5 +1,3 @@
--- Migration 007: RLS for integrations (authenticated client access; API uses service role)
-
 CREATE POLICY integrations_select_own ON integrations
   FOR SELECT
   TO authenticated

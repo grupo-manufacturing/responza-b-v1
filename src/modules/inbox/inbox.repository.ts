@@ -1,18 +1,15 @@
 import { getSupabaseAdminClient } from '../../shared/database/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import { decodeCursor, encodeCursor, type CursorPayload } from '../../shared/pagination/cursor.js'
-import type { InboxPlatform } from './inbox.constants.js'
-import type { MessageContentType, MessageDirection, MessageStatus } from './inbox.constants.js'
+import type { IntegrationPlatform } from '../integrations/integrations.constants.js'
+import type { MessageDirection, MessageStatus } from './inbox.constants.js'
 
 export type ChannelRecord = {
   id: string
   organization_id: string
   integration_id: string
-  platform: InboxPlatform
+  platform: IntegrationPlatform
   display_name: string
-  metadata: Record<string, unknown>
   created_at: string
-  updated_at: string
 }
 
 export type ConversationRecord = {
@@ -20,161 +17,78 @@ export type ConversationRecord = {
   organization_id: string
   channel_id: string
   external_id: string
-  last_message_at: string | null
-  unread_count: number
-  metadata: Record<string, unknown>
+  last_message_at: string
   created_at: string
-  updated_at: string
+}
+
+export type ConversationListRecord = ConversationRecord & {
+  platform: IntegrationPlatform
+  channel_display_name: string
+  contact_display_name: string | null
+  contact_avatar_url: string | null
+  last_message_content: string | null
 }
 
 export type ParticipantRecord = {
   id: string
+  organization_id: string
   conversation_id: string
   platform_user_id: string
-  display_name: string | null
+  display_name: string
   avatar_url: string | null
-  metadata: Record<string, unknown>
-  first_message_at: string | null
-  last_message_at: string | null
   created_at: string
-  updated_at: string
 }
 
 export type MessageRecord = {
   id: string
+  organization_id: string
   conversation_id: string
   participant_id: string | null
   direction: MessageDirection
   platform_message_id: string | null
-  content_type: MessageContentType
-  body: string | null
-  file_url: string | null
-  metadata: Record<string, unknown>
+  content: string
   status: MessageStatus
   created_at: string
-  updated_at: string
 }
 
-const CHANNEL_COLUMNS =
-  'id, organization_id, integration_id, platform, display_name, metadata, created_at, updated_at'
-
+const CHANNEL_COLUMNS = 'id, organization_id, integration_id, platform, display_name, created_at'
 const CONVERSATION_COLUMNS =
-  'id, organization_id, channel_id, external_id, last_message_at, unread_count, metadata, created_at, updated_at'
-
+  'id, organization_id, channel_id, external_id, last_message_at, created_at'
 const PARTICIPANT_COLUMNS =
-  'id, conversation_id, platform_user_id, display_name, avatar_url, metadata, first_message_at, last_message_at, created_at, updated_at'
-
+  'id, organization_id, conversation_id, platform_user_id, display_name, avatar_url, created_at'
 const MESSAGE_COLUMNS =
-  'id, conversation_id, participant_id, direction, platform_message_id, content_type, body, file_url, metadata, status, created_at, updated_at'
-
-export async function findChannelById(
-  organizationId: string,
-  channelId: string,
-): Promise<ChannelRecord | null> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('channels')
-    .select(CHANNEL_COLUMNS)
-    .eq('organization_id', organizationId)
-    .eq('id', channelId)
-    .maybeSingle()
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load channel')
-  }
-
-  return data === null ? null : normalizeChannelRecord(data)
-}
-
-export async function upsertChannel(input: {
-  organization_id: string
-  integration_id: string
-  platform: InboxPlatform
-  display_name: string
-  metadata?: Record<string, unknown>
-}): Promise<ChannelRecord> {
-  const client = getSupabaseAdminClient()
-  const now = new Date().toISOString()
-
-  const { data, error } = await client
-    .from('channels')
-    .upsert(
-      {
-        organization_id: input.organization_id,
-        integration_id: input.integration_id,
-        platform: input.platform,
-        display_name: input.display_name,
-        metadata: input.metadata ?? {},
-        updated_at: now,
-      },
-      { onConflict: 'integration_id' },
-    )
-    .select(CHANNEL_COLUMNS)
-    .single()
-
-  if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to save channel')
-  }
-
-  return normalizeChannelRecord(data)
-}
-
-export async function listChannelsByOrganization(organizationId: string): Promise<ChannelRecord[]> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('channels')
-    .select(CHANNEL_COLUMNS)
-    .eq('organization_id', organizationId)
-    .order('platform', { ascending: true })
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list channels')
-  }
-
-  return (data ?? []).map(normalizeChannelRecord)
-}
+  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, status, created_at'
 
 export type ListConversationsInput = {
   organizationId: string
-  limit: number
-  cursor?: string
-  platform?: InboxPlatform
-  channelIds?: string[]
-}
-
-export type ListConversationsResult = {
-  conversations: ConversationRecord[]
-  nextCursor: string | null
+  platform?: IntegrationPlatform
 }
 
 export async function listConversations(
   input: ListConversationsInput,
-): Promise<ListConversationsResult> {
-  if (input.channelIds !== undefined && input.channelIds.length === 0) {
-    return { conversations: [], nextCursor: null }
-  }
-
+): Promise<ConversationListRecord[]> {
   const client = getSupabaseAdminClient()
-  const fetchLimit = input.limit + 1
 
   let query = client
     .from('conversations')
-    .select(CONVERSATION_COLUMNS)
-    .eq('organization_id', input.organizationId)
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(fetchLimit)
-
-  if (input.channelIds !== undefined) {
-    query = query.in('channel_id', input.channelIds)
-  }
-
-  if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursor)
-    query = query.or(
-      `last_message_at.lt.${decoded.createdAt},and(last_message_at.eq.${decoded.createdAt},id.lt.${decoded.id})`,
+    .select(
+      `
+      ${CONVERSATION_COLUMNS},
+      channels!inner (
+        platform,
+        display_name
+      ),
+      participants (
+        display_name,
+        avatar_url
+      )
+    `,
     )
+    .eq('organization_id', input.organizationId)
+    .order('last_message_at', { ascending: false })
+
+  if (input.platform !== undefined) {
+    query = query.eq('channels.platform', input.platform)
   }
 
   const { data, error } = await query
@@ -183,62 +97,35 @@ export async function listConversations(
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list conversations')
   }
 
-  const rows = (data ?? []).map(normalizeConversationRecord)
-  const hasMore = rows.length > input.limit
-  const conversations = hasMore ? rows.slice(0, input.limit) : rows
+  const records = (data ?? []).map(normalizeConversationListRecord)
+  if (records.length === 0) {
+    return records
+  }
 
-  let nextCursor: string | null = null
-  if (hasMore) {
-    const last = conversations[conversations.length - 1]
-    if (last !== undefined) {
-      const cursorTime = last.last_message_at ?? last.created_at
-      nextCursor = encodeCursor({ createdAt: cursorTime, id: last.id } satisfies CursorPayload)
+  const conversationIds = records.map((record) => record.id)
+  const { data: messageRows, error: messagesError } = await client
+    .from('messages')
+    .select('conversation_id, content, created_at')
+    .eq('organization_id', input.organizationId)
+    .in('conversation_id', conversationIds)
+    .order('created_at', { ascending: false })
+
+  if (messagesError !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list conversations')
+  }
+
+  const lastMessageByConversation = new Map<string, string>()
+  for (const row of messageRows ?? []) {
+    const conversationId = row.conversation_id as string
+    if (!lastMessageByConversation.has(conversationId)) {
+      lastMessageByConversation.set(conversationId, row.content as string)
     }
   }
 
-  return { conversations, nextCursor }
-}
-
-export async function findConversationByChannelAndExternalId(
-  channelId: string,
-  externalId: string,
-): Promise<ConversationRecord | null> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('conversations')
-    .select(CONVERSATION_COLUMNS)
-    .eq('channel_id', channelId)
-    .eq('external_id', externalId)
-    .maybeSingle()
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load conversation')
-  }
-
-  return data === null ? null : normalizeConversationRecord(data)
-}
-
-export async function findOrCreateConversation(input: {
-  organization_id: string
-  channel_id: string
-  external_id: string
-  metadata?: Record<string, unknown>
-}): Promise<ConversationRecord> {
-  const existing = await findConversationByChannelAndExternalId(input.channel_id, input.external_id)
-  if (existing !== null) {
-    return existing
-  }
-
-  try {
-    return await insertConversation(input)
-  } catch (error) {
-    const raced = await findConversationByChannelAndExternalId(input.channel_id, input.external_id)
-    if (raced !== null) {
-      return raced
-    }
-
-    throw error
-  }
+  return records.map((record) => ({
+    ...record,
+    last_message_content: lastMessageByConversation.get(record.id) ?? null,
+  }))
 }
 
 export async function findConversationById(
@@ -257,28 +144,190 @@ export async function findConversationById(
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load conversation')
   }
 
-  return data === null ? null : normalizeConversationRecord(data)
+  if (data === null) {
+    return null
+  }
+
+  return normalizeConversationRecord(data)
 }
 
-/** Internal — used when ingesting platform messages (Phase 5+). */
-export async function insertConversation(input: {
+export async function listParticipantsByConversationId(
+  organizationId: string,
+  conversationId: string,
+): Promise<ParticipantRecord[]> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('participants')
+    .select(PARTICIPANT_COLUMNS)
+    .eq('organization_id', organizationId)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list participants')
+  }
+
+  return (data ?? []).map(normalizeParticipantRecord)
+}
+
+export async function listMessagesByConversationId(
+  organizationId: string,
+  conversationId: string,
+): Promise<MessageRecord[]> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', organizationId)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list messages')
+  }
+
+  return (data ?? []).map(normalizeMessageRecord)
+}
+
+export type InsertOutboundMessageInput = {
   organization_id: string
-  channel_id: string
-  external_id: string
-  metadata?: Record<string, unknown>
-}): Promise<ConversationRecord> {
+  conversation_id: string
+  content: string
+}
+
+export async function insertOutboundMessage(
+  input: InsertOutboundMessageInput,
+): Promise<MessageRecord> {
   const client = getSupabaseAdminClient()
   const now = new Date().toISOString()
 
+  const { data, error } = await client
+    .from('messages')
+    .insert({
+      organization_id: input.organization_id,
+      conversation_id: input.conversation_id,
+      participant_id: null,
+      direction: 'outbound',
+      platform_message_id: null,
+      content: input.content,
+      status: 'sent',
+    })
+    .select(MESSAGE_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to send message')
+  }
+
+  const { error: conversationError } = await client
+    .from('conversations')
+    .update({ last_message_at: now })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.conversation_id)
+
+  if (conversationError !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
+  }
+
+  return normalizeMessageRecord(data)
+}
+
+export type FindChannelByIntegrationInput = {
+  organizationId: string
+  integrationId: string
+}
+
+export async function findChannelByIntegration(
+  input: FindChannelByIntegrationInput,
+): Promise<ChannelRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('channels')
+    .select(CHANNEL_COLUMNS)
+    .eq('organization_id', input.organizationId)
+    .eq('integration_id', input.integrationId)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load channel')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeChannelRecord(data)
+}
+
+export type InsertChannelInput = {
+  organization_id: string
+  integration_id: string
+  platform: IntegrationPlatform
+  display_name: string
+}
+
+export async function insertChannel(input: InsertChannelInput): Promise<ChannelRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('channels')
+    .insert(input)
+    .select(CHANNEL_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create channel')
+  }
+
+  return normalizeChannelRecord(data)
+}
+
+export type FindConversationByExternalIdInput = {
+  organizationId: string
+  channelId: string
+  externalId: string
+}
+
+export async function findConversationByExternalId(
+  input: FindConversationByExternalIdInput,
+): Promise<ConversationRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('conversations')
+    .select(CONVERSATION_COLUMNS)
+    .eq('organization_id', input.organizationId)
+    .eq('channel_id', input.channelId)
+    .eq('external_id', input.externalId)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load conversation')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeConversationRecord(data)
+}
+
+export type InsertConversationInput = {
+  organization_id: string
+  channel_id: string
+  external_id: string
+  last_message_at?: string
+}
+
+export async function insertConversation(
+  input: InsertConversationInput,
+): Promise<ConversationRecord> {
+  const client = getSupabaseAdminClient()
   const { data, error } = await client
     .from('conversations')
     .insert({
       organization_id: input.organization_id,
       channel_id: input.channel_id,
       external_id: input.external_id,
-      last_message_at: now,
-      metadata: input.metadata ?? {},
-      updated_at: now,
+      last_message_at: input.last_message_at ?? new Date().toISOString(),
     })
     .select(CONVERSATION_COLUMNS)
     .single()
@@ -290,130 +339,51 @@ export async function insertConversation(input: {
   return normalizeConversationRecord(data)
 }
 
-export async function touchConversationAfterMessage(
-  organizationId: string,
-  conversationId: string,
-  messageCreatedAt: string,
-  options: { incrementUnread?: boolean } = {},
-): Promise<void> {
-  const existing = await findConversationById(organizationId, conversationId)
-  if (existing === null) {
-    return
-  }
-
-  const client = getSupabaseAdminClient()
-  const unreadCount =
-    options.incrementUnread === true ? existing.unread_count + 1 : existing.unread_count
-
-  const { error } = await client
-    .from('conversations')
-    .update({
-      last_message_at: messageCreatedAt,
-      unread_count: unreadCount,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('organization_id', organizationId)
-    .eq('id', conversationId)
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation activity')
-  }
+export type FindParticipantInput = {
+  organizationId: string
+  conversationId: string
+  platformUserId: string
 }
 
-/** Internal — used when ingesting platform messages (Phase 5+). */
-export async function findParticipantByConversationAndPlatformUserId(
-  conversationId: string,
-  platformUserId: string,
-): Promise<ParticipantRecord | null> {
+export async function findParticipant(input: FindParticipantInput): Promise<ParticipantRecord | null> {
   const client = getSupabaseAdminClient()
   const { data, error } = await client
     .from('participants')
     .select(PARTICIPANT_COLUMNS)
-    .eq('conversation_id', conversationId)
-    .eq('platform_user_id', platformUserId)
+    .eq('organization_id', input.organizationId)
+    .eq('conversation_id', input.conversationId)
+    .eq('platform_user_id', input.platformUserId)
     .maybeSingle()
 
   if (error !== null) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load participant')
   }
 
-  return data === null ? null : normalizeParticipantRecord(data)
-}
-
-export async function findOrCreateParticipant(input: {
-  conversation_id: string
-  platform_user_id: string
-  display_name?: string | null
-  avatar_url?: string | null
-  metadata?: Record<string, unknown>
-}): Promise<ParticipantRecord> {
-  const existing = await findParticipantByConversationAndPlatformUserId(
-    input.conversation_id,
-    input.platform_user_id,
-  )
-
-  if (existing !== null) {
-    if (
-      (existing.display_name === null || existing.display_name.trim().length === 0) &&
-      input.display_name !== undefined &&
-      input.display_name !== null &&
-      input.display_name.trim().length > 0
-    ) {
-      const client = getSupabaseAdminClient()
-      const { data, error } = await client
-        .from('participants')
-        .update({
-          display_name: input.display_name.trim(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-        .select(PARTICIPANT_COLUMNS)
-        .single()
-
-      if (error === null && data !== null) {
-        return normalizeParticipantRecord(data)
-      }
-    }
-
-    return existing
+  if (data === null) {
+    return null
   }
 
-  try {
-    return await insertParticipant(input)
-  } catch (error) {
-    const raced = await findParticipantByConversationAndPlatformUserId(
-      input.conversation_id,
-      input.platform_user_id,
-    )
-    if (raced !== null) {
-      return raced
-    }
-
-    throw error
-  }
+  return normalizeParticipantRecord(data)
 }
 
-export async function insertParticipant(input: {
+export type InsertParticipantInput = {
+  organization_id: string
   conversation_id: string
   platform_user_id: string
-  display_name?: string | null
+  display_name: string
   avatar_url?: string | null
-  metadata?: Record<string, unknown>
-}): Promise<ParticipantRecord> {
+}
+
+export async function insertParticipant(input: InsertParticipantInput): Promise<ParticipantRecord> {
   const client = getSupabaseAdminClient()
-  const now = new Date().toISOString()
-
   const { data, error } = await client
     .from('participants')
     .insert({
+      organization_id: input.organization_id,
       conversation_id: input.conversation_id,
       platform_user_id: input.platform_user_id,
-      display_name: input.display_name ?? null,
+      display_name: input.display_name,
       avatar_url: input.avatar_url ?? null,
-      metadata: input.metadata ?? {},
-      first_message_at: now,
-      last_message_at: now,
-      updated_at: now,
     })
     .select(PARTICIPANT_COLUMNS)
     .single()
@@ -425,194 +395,57 @@ export async function insertParticipant(input: {
   return normalizeParticipantRecord(data)
 }
 
-export async function listParticipantsByConversation(
-  conversationId: string,
-): Promise<ParticipantRecord[]> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('participants')
-    .select(PARTICIPANT_COLUMNS)
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list participants')
-  }
-
-  return (data ?? []).map(normalizeParticipantRecord)
-}
-
-export async function findPrimaryParticipant(
-  conversationId: string,
-): Promise<ParticipantRecord | null> {
-  const participants = await listParticipantsByConversation(conversationId)
-  return participants[0] ?? null
-}
-
-export type ListMessagesInput = {
-  conversationId: string
-  limit: number
-  cursor?: string
-  direction?: MessageDirection
-}
-
-export type ListMessagesResult = {
-  messages: MessageRecord[]
-  nextCursor: string | null
-}
-
-export async function listMessages(input: ListMessagesInput): Promise<ListMessagesResult> {
-  const client = getSupabaseAdminClient()
-  const fetchLimit = input.limit + 1
-
-  let query = client
-    .from('messages')
-    .select(MESSAGE_COLUMNS)
-    .eq('conversation_id', input.conversationId)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(fetchLimit)
-
-  if (input.direction !== undefined) {
-    query = query.eq('direction', input.direction)
-  }
-
-  if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursor)
-    query = query.or(
-      `created_at.lt.${decoded.createdAt},and(created_at.eq.${decoded.createdAt},id.lt.${decoded.id})`,
-    )
-  }
-
-  const { data, error } = await query
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list messages')
-  }
-
-  const rows = (data ?? []).map(normalizeMessageRecord)
-  const hasMore = rows.length > input.limit
-  const messages = hasMore ? rows.slice(0, input.limit) : rows
-
-  let nextCursor: string | null = null
-  if (hasMore) {
-    const last = messages[messages.length - 1]
-    if (last !== undefined) {
-      nextCursor = encodeCursor({ createdAt: last.created_at, id: last.id } satisfies CursorPayload)
-    }
-  }
-
-  return { messages, nextCursor }
-}
-
-export async function findMessageByPlatformMessageId(
-  platformMessageId: string,
-): Promise<MessageRecord | null> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('messages')
-    .select(MESSAGE_COLUMNS)
-    .eq('platform_message_id', platformMessageId)
-    .maybeSingle()
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load message')
-  }
-
-  return data === null ? null : normalizeMessageRecord(data)
-}
-
-export async function insertMessage(input: {
+export type InsertInboundMessageInput = {
+  organization_id: string
   conversation_id: string
-  participant_id: string | null
-  direction: MessageDirection
-  content_type: MessageContentType
-  body?: string | null
-  file_url?: string | null
-  status: MessageStatus
-  metadata?: Record<string, unknown>
-  platform_message_id?: string | null
-}): Promise<MessageRecord> {
+  participant_id: string
+  platform_message_id: string
+  content: string
+}
+
+export async function insertInboundMessage(
+  input: InsertInboundMessageInput,
+): Promise<MessageRecord | null> {
   const client = getSupabaseAdminClient()
   const now = new Date().toISOString()
 
   const { data, error } = await client
     .from('messages')
     .insert({
+      organization_id: input.organization_id,
       conversation_id: input.conversation_id,
       participant_id: input.participant_id,
-      direction: input.direction,
-      content_type: input.content_type,
-      body: input.body ?? null,
-      file_url: input.file_url ?? null,
-      status: input.status,
-      metadata: input.metadata ?? {},
-      platform_message_id: input.platform_message_id ?? null,
-      updated_at: now,
+      direction: 'inbound',
+      platform_message_id: input.platform_message_id,
+      content: input.content,
+      status: 'sent',
     })
     .select(MESSAGE_COLUMNS)
-    .single()
-
-  if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create message')
-  }
-
-  return normalizeMessageRecord(data)
-}
-
-export async function updateMessageStatus(
-  messageId: string,
-  status: MessageStatus,
-  options: { platformMessageId?: string } = {},
-): Promise<MessageRecord> {
-  const client = getSupabaseAdminClient()
-  const patch: Record<string, unknown> = {
-    status,
-    updated_at: new Date().toISOString(),
-  }
-
-  if (options.platformMessageId !== undefined) {
-    patch.platform_message_id = options.platformMessageId
-  }
-
-  const { data, error } = await client
-    .from('messages')
-    .update(patch)
-    .eq('id', messageId)
-    .select(MESSAGE_COLUMNS)
-    .single()
-
-  if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update message status')
-  }
-
-  return normalizeMessageRecord(data)
-}
-
-export async function findLatestMessageByConversation(
-  conversationId: string,
-): Promise<MessageRecord | null> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('messages')
-    .select(MESSAGE_COLUMNS)
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(1)
     .maybeSingle()
 
   if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load latest message')
+    if (error.code === '23505') {
+      return null
+    }
+
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to receive message')
   }
 
-  return data === null ? null : normalizeMessageRecord(data)
-}
+  if (data === null) {
+    return null
+  }
 
-function normalizeJsonObject(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  const { error: conversationError } = await client
+    .from('conversations')
+    .update({ last_message_at: now })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.conversation_id)
+
+  if (conversationError !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
+  }
+
+  return normalizeMessageRecord(data)
 }
 
 function normalizeChannelRecord(row: Record<string, unknown>): ChannelRecord {
@@ -620,11 +453,9 @@ function normalizeChannelRecord(row: Record<string, unknown>): ChannelRecord {
     id: row.id as string,
     organization_id: row.organization_id as string,
     integration_id: row.integration_id as string,
-    platform: row.platform as InboxPlatform,
+    platform: row.platform as IntegrationPlatform,
     display_name: row.display_name as string,
-    metadata: normalizeJsonObject(row.metadata),
     created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
   }
 }
 
@@ -634,42 +465,62 @@ function normalizeConversationRecord(row: Record<string, unknown>): Conversation
     organization_id: row.organization_id as string,
     channel_id: row.channel_id as string,
     external_id: row.external_id as string,
-    last_message_at: (row.last_message_at as string | null) ?? null,
-    unread_count: row.unread_count as number,
-    metadata: normalizeJsonObject(row.metadata),
+    last_message_at: row.last_message_at as string,
     created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
+  }
+}
+
+function normalizeConversationListRecord(row: Record<string, unknown>): ConversationListRecord {
+  const channel = row.channels as Record<string, unknown> | Record<string, unknown>[] | null
+  const channelRow = Array.isArray(channel) ? channel[0] : channel
+
+  if (channelRow === null || channelRow === undefined) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list conversations')
+  }
+
+  const participants = row.participants as
+    | Array<{ display_name: string; avatar_url: string | null }>
+    | { display_name: string; avatar_url: string | null }
+    | null
+  const participantRows = Array.isArray(participants)
+    ? participants
+    : participants !== null
+      ? [participants]
+      : []
+  const primaryParticipant = participantRows[0]
+
+  return {
+    ...normalizeConversationRecord(row),
+    platform: channelRow.platform as IntegrationPlatform,
+    channel_display_name: channelRow.display_name as string,
+    contact_display_name: primaryParticipant?.display_name ?? null,
+    contact_avatar_url: primaryParticipant?.avatar_url ?? null,
+    last_message_content: null,
   }
 }
 
 function normalizeParticipantRecord(row: Record<string, unknown>): ParticipantRecord {
   return {
     id: row.id as string,
+    organization_id: row.organization_id as string,
     conversation_id: row.conversation_id as string,
     platform_user_id: row.platform_user_id as string,
-    display_name: (row.display_name as string | null) ?? null,
+    display_name: row.display_name as string,
     avatar_url: (row.avatar_url as string | null) ?? null,
-    metadata: normalizeJsonObject(row.metadata),
-    first_message_at: (row.first_message_at as string | null) ?? null,
-    last_message_at: (row.last_message_at as string | null) ?? null,
     created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
   }
 }
 
 function normalizeMessageRecord(row: Record<string, unknown>): MessageRecord {
   return {
     id: row.id as string,
+    organization_id: row.organization_id as string,
     conversation_id: row.conversation_id as string,
     participant_id: (row.participant_id as string | null) ?? null,
     direction: row.direction as MessageDirection,
     platform_message_id: (row.platform_message_id as string | null) ?? null,
-    content_type: row.content_type as MessageContentType,
-    body: (row.body as string | null) ?? null,
-    file_url: (row.file_url as string | null) ?? null,
-    metadata: normalizeJsonObject(row.metadata),
+    content: row.content as string,
     status: row.status as MessageStatus,
     created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
   }
 }

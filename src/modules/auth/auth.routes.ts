@@ -56,13 +56,8 @@ export function createAuthProtectedRouter(): Router {
   const router = Router()
 
   router.get('/me', (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
-
     void authService
-      .getCurrentOrganization(req.auth)
+      .getCurrentOrganization(req.auth!)
       .then((payload) => {
         res.status(200).json(toMeResponse(payload))
       })

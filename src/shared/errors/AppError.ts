@@ -5,11 +5,9 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'VALIDATION_ERROR'
-  | 'TENANT_REQUIRED'
   | 'SUBSCRIPTION_REQUIRED'
   | 'INTEGRATIONS_REQUIRED'
-  | 'CONFIG_ERROR'
-  | 'UPSTREAM_ERROR'
+  | 'NOT_IMPLEMENTED'
   | 'INTERNAL_ERROR'
 
 export class AppError extends Error {

@@ -52,34 +52,16 @@ export async function findProfileByOrganizationId(
   return data as BusinessProfileRecord | null
 }
 
-export async function updateProfile(
+export async function completeProfile(
   organizationId: string,
   patch: BusinessProfileUpdatePatch,
 ): Promise<BusinessProfileRecord> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('organization_business_profiles')
-    .update({
-      ...patch,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('organization_id', organizationId)
-    .select(PROFILE_COLUMNS)
-    .single()
-
-  if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update business details profile')
-  }
-
-  return data as BusinessProfileRecord
-}
-
-export async function markProfileCompleted(organizationId: string): Promise<BusinessProfileRecord> {
   const client = getSupabaseAdminClient()
   const completedAt = new Date().toISOString()
   const { data, error } = await client
     .from('organization_business_profiles')
     .update({
+      ...patch,
       completed_at: completedAt,
       updated_at: completedAt,
     })

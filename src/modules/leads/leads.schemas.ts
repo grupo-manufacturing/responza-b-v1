@@ -9,18 +9,12 @@ const apiLeadStatusSchema = z.enum([
   'lost',
 ])
 
-const apiLeadSourceSchema = z.enum(['manual', 'inbox', 'whatsapp', 'instagram', 'indiamart', 'other'])
-
-const metadataSchema = z.record(z.unknown()).optional()
-
 const emailSchema = z.string().trim().email().max(320).optional()
 const phoneSchema = z.string().trim().min(3).max(32).optional()
 const nameSchema = z.string().trim().min(1).max(200)
 const notesSchema = z.string().trim().max(5000).optional()
 
 export const listLeadsQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  cursor: z.string().trim().min(1).optional(),
   status: apiLeadStatusSchema.optional(),
 })
 
@@ -33,9 +27,7 @@ export const createLeadBodySchema = z.object({
   email: emailSchema,
   phone: phoneSchema,
   notes: notesSchema,
-  source: apiLeadSourceSchema.default('manual'),
   status: apiLeadStatusSchema.default('new'),
-  metadata: metadataSchema,
 })
 
 export const updateLeadBodySchema = z
@@ -45,7 +37,6 @@ export const updateLeadBodySchema = z
     phone: z.union([phoneSchema, z.literal('')]).optional(),
     notes: z.union([notesSchema, z.literal('')]).optional(),
     status: apiLeadStatusSchema.optional(),
-    metadata: metadataSchema,
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field must be provided',

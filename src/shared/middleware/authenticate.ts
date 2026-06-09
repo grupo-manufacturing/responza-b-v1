@@ -31,7 +31,6 @@ export async function authenticateMiddleware(
 
     const auth = await resolveAuthContextFromAccessToken(token)
     req.auth = auth
-    req.tenant = { organizationId: auth.organizationId }
     next()
   } catch (error) {
     next(error)

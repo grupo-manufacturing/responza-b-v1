@@ -1,5 +1,3 @@
--- Migration 005: RLS for leads (authenticated client access; API uses service role)
-
 CREATE POLICY leads_select_own ON leads
   FOR SELECT
   TO authenticated

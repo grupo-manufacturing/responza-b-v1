@@ -1,22 +1,22 @@
 import { z } from 'zod'
 
-import { INTEGRATION_PLATFORMS } from './integrations.constants.js'
+const integrationPlatformSchema = z.enum(['whatsapp', 'instagram', 'indiamart'])
 
 export const integrationPlatformParamsSchema = z.object({
-  platform: z.enum(INTEGRATION_PLATFORMS),
+  platform: integrationPlatformSchema,
 })
 
-export const whatsappSessionInfoSchema = z
+export const connectIntegrationBodySchema = z
   .object({
-    phone_number_id: z.string().min(1),
-    waba_id: z.string().min(1),
-    business_id: z.string().optional(),
+    code: z.string().trim().min(1).optional(),
+    session_info: z
+      .object({
+        phone_number_id: z.string().trim().min(1).optional(),
+        waba_id: z.string().trim().min(1).optional(),
+        business_id: z.string().trim().min(1).optional(),
+      })
+      .optional(),
   })
   .passthrough()
 
-export const integrationConnectBodySchema = z.object({
-  code: z.string().min(1).optional(),
-  session_info: whatsappSessionInfoSchema.optional(),
-})
-
-export type IntegrationConnectBody = z.infer<typeof integrationConnectBodySchema>
+export type ConnectIntegrationBody = z.infer<typeof connectIntegrationBodySchema>

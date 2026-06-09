@@ -5,10 +5,6 @@ import { loadEnv } from '../config/index.js'
 let supabaseAdminClient: SupabaseClient | null = null
 let supabaseAuthClient: SupabaseClient | null = null
 
-export function getSupabaseClient(): SupabaseClient {
-  return getSupabaseAdminClient()
-}
-
 export function getSupabaseAdminClient(): SupabaseClient {
   if (supabaseAdminClient !== null) {
     return supabaseAdminClient

@@ -1,14 +1,11 @@
 import type { AuthContext } from '../auth/types.js'
+import type { IntegrationPlatform } from '../../modules/integrations/integrations.constants.js'
 
 declare global {
   namespace Express {
     interface Request {
-      correlationId: string
       auth?: AuthContext
-      tenant?: {
-        organizationId: string
-      }
-      rawBody?: string
+      integrationPlatform?: IntegrationPlatform
     }
   }
 }

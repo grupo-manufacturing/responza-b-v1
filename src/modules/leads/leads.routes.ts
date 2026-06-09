@@ -16,13 +16,8 @@ export function createLeadsRouter(): Router {
   const router = Router()
 
   router.get('/', validateRequest({ query: listLeadsQuerySchema }), (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
-
     void leadsService
-      .listLeads(req.auth, req.query as unknown as ListLeadsQuery)
+      .listLeads(req.auth!, req.query as unknown as ListLeadsQuery)
       .then((result) => {
         res.status(200).json(result)
       })
@@ -30,15 +25,10 @@ export function createLeadsRouter(): Router {
   })
 
   router.get('/:id', validateRequest({ params: leadIdParamsSchema }), (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
-
     const { id } = req.params as { id: string }
 
     void leadsService
-      .getLead(req.auth, id)
+      .getLead(req.auth!, id)
       .then((lead) => {
         res.status(200).json({ lead })
       })
@@ -46,13 +36,8 @@ export function createLeadsRouter(): Router {
   })
 
   router.post('/', validateRequest({ body: createLeadBodySchema }), (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
-
     void leadsService
-      .createLead(req.auth, req.body as CreateLeadBody)
+      .createLead(req.auth!, req.body as CreateLeadBody)
       .then((lead) => {
         res.status(201).json({ lead })
       })
@@ -63,15 +48,10 @@ export function createLeadsRouter(): Router {
     '/:id',
     validateRequest({ params: leadIdParamsSchema, body: updateLeadBodySchema }),
     (req, res, next) => {
-      if (req.auth === undefined) {
-        next()
-        return
-      }
-
       const { id: leadId } = req.params as { id: string }
 
       void leadsService
-        .updateLead(req.auth, leadId, req.body as UpdateLeadBody)
+        .updateLead(req.auth!, leadId, req.body as UpdateLeadBody)
         .then((lead) => {
           res.status(200).json({ lead })
         })
@@ -80,15 +60,10 @@ export function createLeadsRouter(): Router {
   )
 
   router.delete('/:id', validateRequest({ params: leadIdParamsSchema }), (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
-
     const { id: leadId } = req.params as { id: string }
 
     void leadsService
-      .deleteLead(req.auth, leadId)
+      .deleteLead(req.auth!, leadId)
       .then(() => {
         res.status(204).send()
       })

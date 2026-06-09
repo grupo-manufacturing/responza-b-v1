@@ -1,28 +1,26 @@
 import { Router } from 'express'
 
-import { validateRequest } from '../../shared/middleware/index.js'
+import {
+  requireIntegrationMiddleware,
+  validateRequest,
+} from '../../shared/middleware/index.js'
 import {
   conversationIdParamsSchema,
-  createMessageBodySchema,
   listInboxQuerySchema,
-  listMessagesQuerySchema,
-  type CreateMessageBody,
+  sendMessageBodySchema,
   type ListInboxQuery,
-  type ListMessagesQuery,
+  type SendMessageBody,
 } from './inbox.schemas.js'
 import * as inboxService from './inbox.service.js'
 
 export function createInboxRouter(): Router {
   const router = Router()
 
-  router.get('/', validateRequest({ query: listInboxQuerySchema }), (req, res, next) => {
-    if (req.auth === undefined) {
-      next()
-      return
-    }
+  router.use(requireIntegrationMiddleware())
 
+  router.get('/', validateRequest({ query: listInboxQuerySchema }), (req, res, next) => {
     void inboxService
-      .listInbox(req.auth, req.query as unknown as ListInboxQuery)
+      .listConversations(req.auth!, req.query as unknown as ListInboxQuery)
       .then((result) => {
         res.status(200).json(result)
       })
@@ -35,59 +33,27 @@ export function createInboxRouter(): Router {
 export function createConversationsRouter(): Router {
   const router = Router()
 
-  router.get(
-    '/:id',
-    validateRequest({ params: conversationIdParamsSchema }),
-    (req, res, next) => {
-      if (req.auth === undefined) {
-        next()
-        return
-      }
+  router.use(requireIntegrationMiddleware())
 
-      const { id } = req.params as { id: string }
+  router.get('/:id', validateRequest({ params: conversationIdParamsSchema }), (req, res, next) => {
+    const { id } = req.params as { id: string }
 
-      void inboxService
-        .getConversation(req.auth, id)
-        .then((result) => {
-          res.status(200).json(result)
-        })
-        .catch(next)
-    },
-  )
-
-  router.get(
-    '/:id/messages',
-    validateRequest({ params: conversationIdParamsSchema, query: listMessagesQuerySchema }),
-    (req, res, next) => {
-      if (req.auth === undefined) {
-        next()
-        return
-      }
-
-      const { id } = req.params as { id: string }
-
-      void inboxService
-        .listConversationMessages(req.auth, id, req.query as unknown as ListMessagesQuery)
-        .then((result) => {
-          res.status(200).json(result)
-        })
-        .catch(next)
-    },
-  )
+    void inboxService
+      .getConversation(req.auth!, id)
+      .then((result) => {
+        res.status(200).json(result)
+      })
+      .catch(next)
+  })
 
   router.post(
     '/:id/messages',
-    validateRequest({ params: conversationIdParamsSchema, body: createMessageBodySchema }),
+    validateRequest({ params: conversationIdParamsSchema, body: sendMessageBodySchema }),
     (req, res, next) => {
-      if (req.auth === undefined) {
-        next()
-        return
-      }
-
       const { id } = req.params as { id: string }
 
       void inboxService
-        .createOutboundMessage(req.auth, id, req.body as CreateMessageBody)
+        .sendMessage(req.auth!, id, req.body as SendMessageBody)
         .then((result) => {
           res.status(201).json(result)
         })
