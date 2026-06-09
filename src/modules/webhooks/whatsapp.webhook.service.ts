@@ -1,15 +1,19 @@
 import { parseWhatsAppInboundMessages } from '../../connectors/whatsapp/parseWebhook.js'
 import { verifyMetaWebhookSignature } from '../../connectors/whatsapp/verifyWebhookSignature.js'
+import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import {
   resolveWhatsAppIntegrationByPhoneNumberId,
   resolveWhatsAppIntegrationByWabaId,
 } from '../integrations/integrations.service.js'
 import { receiveInboundMessage } from '../inbox/inbox.service.js'
-import type { WhatsAppIntegrationCredentials } from '../integrations/integrations.types.js'
-import { resolveMetaWebhookAppSecret, verifyMetaWebhookChallenge } from './meta.webhook.shared.js'
+import type { IntegrationCredentials } from '../integrations/integrations.types.js'
 
-export { verifyMetaWebhookChallenge as verifyWhatsAppWebhookChallenge }
+type WebhookVerifyQuery = {
+  mode?: string
+  token?: string
+  challenge?: string
+}
 
 function formatWhatsAppDisplayName(waId: string, contactName: string | null): string {
   if (contactName !== null) {
@@ -27,7 +31,7 @@ function formatWhatsAppDisplayName(waId: string, contactName: string | null): st
 async function resolveIntegrationForInbound(input: {
   phoneNumberId: string | null
   wabaId: string | null
-}): Promise<WhatsAppIntegrationCredentials | null> {
+}): Promise<IntegrationCredentials | null> {
   if (input.phoneNumberId !== null) {
     const byPhone = await resolveWhatsAppIntegrationByPhoneNumberId(input.phoneNumberId)
     if (byPhone !== null) {
@@ -42,18 +46,36 @@ async function resolveIntegrationForInbound(input: {
   return null
 }
 
+export function verifyWhatsAppWebhookChallenge(query: WebhookVerifyQuery): string {
+  const { WEBHOOK_VERIFY_TOKEN } = loadEnv()
+
+  if (WEBHOOK_VERIFY_TOKEN.length === 0) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'WEBHOOK_VERIFY_TOKEN is not configured')
+  }
+
+  const mode = query.mode
+  const token = query.token
+  const challenge = query.challenge
+
+  if (mode !== 'subscribe' || token !== WEBHOOK_VERIFY_TOKEN || challenge === undefined) {
+    throw new AppError(403, 'FORBIDDEN', 'Webhook verification failed')
+  }
+
+  return challenge
+}
+
 export async function processWhatsAppWebhook(input: {
   rawBody: Buffer
   signatureHeader: string | undefined
   body: unknown
 }): Promise<void> {
-  const appSecret = resolveMetaWebhookAppSecret()
+  const { META_APP_SECRET } = loadEnv()
 
-  if (appSecret.length === 0) {
+  if (META_APP_SECRET.length === 0) {
     throw new AppError(500, 'INTERNAL_ERROR', 'META_APP_SECRET is not configured')
   }
 
-  if (!verifyMetaWebhookSignature(input.rawBody, input.signatureHeader, appSecret)) {
+  if (!verifyMetaWebhookSignature(input.rawBody, input.signatureHeader, META_APP_SECRET)) {
     throw new AppError(403, 'FORBIDDEN', 'Invalid webhook signature')
   }
 

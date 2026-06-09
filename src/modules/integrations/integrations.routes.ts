@@ -29,24 +29,6 @@ export function createIntegrationsRouter(): Router {
       .catch(next)
   })
 
-  router.get('/instagram/status', (req, res, next) => {
-    void integrationsService
-      .getInstagramConnectionSummary(req.auth!)
-      .then((result) => {
-        res.status(200).json(result)
-      })
-      .catch(next)
-  })
-
-  router.get('/instagram/connect-url', (req, res, next) => {
-    void integrationsService
-      .getInstagramConnectUrl(req.auth!)
-      .then((result) => {
-        res.status(200).json(result)
-      })
-      .catch(next)
-  })
-
   router.post(
     '/:platform/connect',
     validateRequest({ params: integrationPlatformParamsSchema, body: connectIntegrationBodySchema }),

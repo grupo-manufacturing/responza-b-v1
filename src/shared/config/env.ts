@@ -13,14 +13,8 @@ const envSchema = z.object({
   TRIAL_DURATION_DAYS: z.coerce.number().int().positive().default(7),
   SUBSCRIPTION_PERIOD_DAYS: z.coerce.number().int().positive().default(30),
   WHATSAPP_GRAPH_VERSION: z.string().trim().min(1).default('v25.0'),
-  IG_GRAPH_VERSION: z.string().trim().min(1).default('v25.0'),
   META_APP_ID: z.string().default(''),
   META_APP_SECRET: z.string().default(''),
-  INSTAGRAM_APP_ID: z.string().default(''),
-  INSTAGRAM_APP_SECRET: z.string().default(''),
-  INSTAGRAM_REDIRECT_URI: z.string().default(''),
-  FRONTEND_ORIGIN: z.string().default(''),
-  SYSTEM_USER_TOKEN: z.string().default(''),
   WEBHOOK_VERIFY_TOKEN: z.string().default(''),
 })
 
@@ -59,18 +53,4 @@ export function getCorsOrigins(env: Env): string[] {
   return env.CORS_ORIGINS.split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
-}
-
-export function getFrontendOrigin(env: Env): string {
-  const explicit = env.FRONTEND_ORIGIN.trim()
-  if (explicit.length > 0) {
-    return explicit
-  }
-
-  const corsOrigins = getCorsOrigins(env)
-  if (corsOrigins.length > 0) {
-    return corsOrigins[0]!
-  }
-
-  return 'http://localhost:5173'
 }
