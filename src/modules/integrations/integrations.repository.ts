@@ -8,6 +8,7 @@ import {
 import type {
   IntegrationCredentials,
   WhatsAppIntegrationMetadata,
+  InstagramIntegrationMetadata,
 } from './integrations.types.js'
 
 export type IntegrationRecord = {
@@ -19,7 +20,7 @@ export type IntegrationRecord = {
 
 type IntegrationCredentialsRow = IntegrationRecord & {
   access_token: string
-  metadata: WhatsAppIntegrationMetadata
+  metadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata
 }
 
 const INTEGRATION_PUBLIC_COLUMNS = 'id, organization_id, platform, status'
@@ -183,6 +184,101 @@ export async function upsertWhatsAppCredentials(
   return normalizeIntegrationRecord(data)
 }
 
+export async function findInstagramCredentialsByOrganization(
+  organizationId: string,
+): Promise<IntegrationCredentialsRow | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('integrations')
+    .select(INTEGRATION_CREDENTIAL_COLUMNS)
+    .eq('organization_id', organizationId)
+    .eq('platform', 'instagram')
+    .eq('status', 'connected')
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load Instagram credentials')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeIntegrationCredentialsRow(data)
+}
+
+export async function findConnectedInstagramByBusinessId(
+  businessAccountId: string,
+): Promise<IntegrationCredentialsRow | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('integrations')
+    .select(INTEGRATION_CREDENTIAL_COLUMNS)
+    .eq('platform', 'instagram')
+    .eq('status', 'connected')
+    .eq('metadata->>business_account_id', businessAccountId)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to resolve Instagram integration')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeIntegrationCredentialsRow(data)
+}
+
+export async function upsertInstagramCredentials(
+  organizationId: string,
+  input: {
+    accessToken: string
+    metadata: InstagramIntegrationMetadata
+  },
+): Promise<IntegrationRecord> {
+  const existing = await findIntegrationByPlatform(organizationId, 'instagram')
+
+  const client = getSupabaseAdminClient()
+  const payload = {
+    access_token: input.accessToken,
+    metadata: input.metadata,
+    status: 'connected' as const,
+  }
+
+  if (existing !== null) {
+    const { data, error } = await client
+      .from('integrations')
+      .update(payload)
+      .eq('organization_id', organizationId)
+      .eq('platform', 'instagram')
+      .select(INTEGRATION_PUBLIC_COLUMNS)
+      .single()
+
+    if (error !== null || data === null) {
+      throwInstagramCredentialStoreError(error)
+    }
+
+    return normalizeIntegrationRecord(data)
+  }
+
+  const { data, error } = await client
+    .from('integrations')
+    .insert({
+      organization_id: organizationId,
+      platform: 'instagram',
+      ...payload,
+    })
+    .select(INTEGRATION_PUBLIC_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throwInstagramCredentialStoreError(error)
+  }
+
+  return normalizeIntegrationRecord(data)
+}
+
 export async function setIntegrationDisconnected(
   organizationId: string,
   platform: IntegrationPlatform,
@@ -334,6 +430,18 @@ function throwWhatsAppCredentialStoreError(error: { code?: string } | null): nev
   throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store WhatsApp credentials')
 }
 
+function throwInstagramCredentialStoreError(error: { code?: string } | null): never {
+  if (error?.code === '23505') {
+    throw new AppError(
+      409,
+      'CONFLICT',
+      'This Instagram business account is already connected to another organization',
+    )
+  }
+
+  throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store Instagram credentials')
+}
+
 function normalizeIntegrationRecord(row: Record<string, unknown>): IntegrationRecord {
   return {
     id: row.id as string,
@@ -352,27 +460,53 @@ function normalizeIntegrationCredentialsRow(
   }
 
   const metadata = rawMetadata as Record<string, unknown>
-  const phoneNumberId = metadata.phone_number_id
-  const wabaId = metadata.waba_id
-  if (typeof phoneNumberId !== 'string' || phoneNumberId.length === 0) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing phone_number_id')
-  }
-  if (typeof wabaId !== 'string' || wabaId.length === 0) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing waba_id')
-  }
+  const platform = row.platform as IntegrationPlatform
 
   const accessToken = row.access_token
   if (typeof accessToken !== 'string' || accessToken.length === 0) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Integration access token is missing')
   }
 
-  const businessId = metadata['business_id']
-  const normalizedMetadata: WhatsAppIntegrationMetadata = {
-    phone_number_id: phoneNumberId,
-    waba_id: wabaId,
-    ...(typeof businessId === 'string' && businessId.length > 0
-      ? { business_id: businessId }
-      : {}),
+  let normalizedMetadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata
+
+  if (platform === 'whatsapp') {
+    const phoneNumberId = metadata.phone_number_id
+    const wabaId = metadata.waba_id
+    if (typeof phoneNumberId !== 'string' || phoneNumberId.length === 0) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing phone_number_id')
+    }
+    if (typeof wabaId !== 'string' || wabaId.length === 0) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing waba_id')
+    }
+
+    const businessId = metadata['business_id']
+    normalizedMetadata = {
+      phone_number_id: phoneNumberId,
+      waba_id: wabaId,
+      ...(typeof businessId === 'string' && businessId.length > 0
+        ? { business_id: businessId }
+        : {}),
+    }
+  } else if (platform === 'instagram') {
+    const businessAccountId = metadata.business_account_id
+    const userId = metadata.user_id
+    if (typeof businessAccountId !== 'string' || businessAccountId.length === 0) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing business_account_id')
+    }
+    if (typeof userId !== 'string' || userId.length === 0) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing user_id')
+    }
+
+    const username = metadata.username
+    normalizedMetadata = {
+      business_account_id: businessAccountId,
+      user_id: userId,
+      ...(typeof username === 'string' && username.length > 0
+        ? { username }
+        : {}),
+    }
+  } else {
+    throw new AppError(500, 'INTERNAL_ERROR', `Unsupported platform for credential normalization: ${platform}`)
   }
 
   return {

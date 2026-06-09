@@ -16,6 +16,10 @@ const envSchema = z.object({
   META_APP_ID: z.string().default(''),
   META_APP_SECRET: z.string().default(''),
   WEBHOOK_VERIFY_TOKEN: z.string().default(''),
+  INSTAGRAM_GRAPH_VERSION: z.string().trim().min(1).default('v25.0'),
+  INSTAGRAM_APP_ID: z.string().default(''),
+  INSTAGRAM_APP_SECRET: z.string().default(''),
+  INSTAGRAM_REDIRECT_URI: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>
