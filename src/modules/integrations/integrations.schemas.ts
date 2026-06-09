@@ -20,6 +20,7 @@ export const instagramSessionInfoSchema = z.object({
 
 export const connectIntegrationBodySchema = z.object({
   code: z.string().trim().min(1).optional(),
+  redirect_uri: z.string().trim().min(1).optional(),
   session_info: z.union([
     whatsAppSessionInfoSchema,
     instagramSessionInfoSchema

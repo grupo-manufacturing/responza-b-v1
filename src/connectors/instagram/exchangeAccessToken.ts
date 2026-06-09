@@ -18,14 +18,26 @@ type InstagramErrorBody = {
     type?: string
     code?: number
   }
+  error_message?: string
+  error_type?: string
+  code?: number
+}
+
+function normalizeOAuthCode(code: string): string {
+  return code.trim().replace(/#_$/, '')
 }
 
 async function parseInstagramError(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as InstagramErrorBody
-    const message = body.error?.message
-    if (typeof message === 'string' && message.length > 0) {
-      return message
+    const nestedMessage = body.error?.message
+    if (typeof nestedMessage === 'string' && nestedMessage.length > 0) {
+      return nestedMessage
+    }
+
+    const flatMessage = body.error_message
+    if (typeof flatMessage === 'string' && flatMessage.length > 0) {
+      return flatMessage
     }
   } catch {
     // ignore parse errors
@@ -34,15 +46,19 @@ async function parseInstagramError(response: Response): Promise<string> {
   return `Instagram token exchange failed (${response.status})`
 }
 
-export async function exchangeInstagramAccessToken(code: string): Promise<string> {
+export async function exchangeInstagramAccessToken(
+  code: string,
+  redirectUriOverride?: string,
+): Promise<string> {
   const { INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI } = loadEnv()
-  const trimmedCode = code.trim()
+  const trimmedCode = normalizeOAuthCode(code)
+  const redirectUri = (redirectUriOverride ?? INSTAGRAM_REDIRECT_URI).trim()
 
   if (trimmedCode.length === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', 'code is required')
   }
 
-  if (INSTAGRAM_APP_ID.length === 0 || INSTAGRAM_APP_SECRET.length === 0 || INSTAGRAM_REDIRECT_URI.length === 0) {
+  if (INSTAGRAM_APP_ID.length === 0 || INSTAGRAM_APP_SECRET.length === 0 || redirectUri.length === 0) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Instagram app credentials are required on server')
   }
 
@@ -51,15 +67,15 @@ export async function exchangeInstagramAccessToken(code: string): Promise<string
   form.append('client_id', INSTAGRAM_APP_ID)
   form.append('client_secret', INSTAGRAM_APP_SECRET)
   form.append('grant_type', 'authorization_code')
-  form.append('redirect_uri', INSTAGRAM_REDIRECT_URI)
+  form.append('redirect_uri', redirectUri)
   form.append('code', trimmedCode)
 
   const response = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
-    body: form,
+    body: form.toString(),
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    }
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
   })
 
   if (!response.ok) {
@@ -100,6 +116,7 @@ export async function exchangeInstagramAccessToken(code: string): Promise<string
 
 type InstagramUserResponse = {
   id?: string
+  user_id?: string
   username?: string
   account_type?: string
 }
@@ -109,7 +126,9 @@ export async function fetchInstagramUserInfo(accessToken: string): Promise<{
   user_id: string
   username?: string
 }> {
-  const userResponse = await fetch(`https://graph.instagram.com/me?fields=id,username,account_type&access_token=${accessToken}`)
+  const userResponse = await fetch(
+    `https://graph.instagram.com/me?fields=user_id,username,account_type&access_token=${encodeURIComponent(accessToken)}`,
+  )
   
   if (!userResponse.ok) {
     const errorText = await userResponse.text()
@@ -118,15 +137,14 @@ export async function fetchInstagramUserInfo(accessToken: string): Promise<{
   
   const user = (await userResponse.json()) as InstagramUserResponse
   
-  if (!user.id) {
+  const userId = user.user_id ?? user.id
+  if (typeof userId !== 'string' || userId.length === 0) {
     throw new AppError(502, 'BAD_REQUEST', 'Instagram user ID not found')
   }
 
-  // For now, use the user ID as the business account ID
-  // In a production setup, you'd fetch the actual business account info
   return {
-    business_account_id: user.id,
-    user_id: user.id,
-    username: user.username
+    business_account_id: userId,
+    user_id: userId,
+    username: user.username,
   }
 }

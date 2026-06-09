@@ -150,7 +150,7 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
     throw new AppError(400, 'VALIDATION_ERROR', 'code is required')
   }
 
-  const accessToken = await exchangeInstagramAccessToken(code)
+  const accessToken = await exchangeInstagramAccessToken(code, body.redirect_uri)
   
   // Fetch user info using the access token
   const userInfo = await fetchInstagramUserInfo(accessToken)
