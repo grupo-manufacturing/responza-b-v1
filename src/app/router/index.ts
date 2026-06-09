@@ -10,6 +10,7 @@ import {
   authenticateMiddleware,
   requireActiveSubscriptionMiddleware,
 } from '../../shared/middleware/index.js'
+import { createInstagramOAuthRouter } from '../../modules/integrations/instagram-oauth.routes.js'
 import { createWebhooksRouter } from '../../modules/webhooks/webhooks.routes.js'
 import { healthRouter } from './health.routes.js'
 
@@ -17,6 +18,7 @@ export function createAppRouter(): Router {
   const router = Router()
 
   router.use(healthRouter)
+  router.use('/auth', createInstagramOAuthRouter())
   router.use('/webhooks', createWebhooksRouter())
 
   const apiRouter = Router()
