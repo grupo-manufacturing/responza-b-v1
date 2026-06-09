@@ -1,1 +1,1 @@
-export { getCorsOrigins, loadEnv, type Env } from './env.js'
+export { getCorsOrigins, getFrontendOrigin, loadEnv, type Env } from './env.js'

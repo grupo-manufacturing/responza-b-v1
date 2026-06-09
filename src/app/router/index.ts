@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
 import { createBusinessDetailsRouter } from '../../modules/business-details/business-details.routes.js'
 import { createConversationsRouter, createInboxRouter } from '../../modules/inbox/inbox.routes.js'
+import { createInstagramAuthRouter } from '../../modules/integrations/instagram.auth.routes.js'
 import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
 import { createLeadsRouter } from '../../modules/leads/leads.routes.js'
 import { createSubscriptionRouter } from '../../modules/subscription/subscription.routes.js'
@@ -18,6 +19,7 @@ export function createAppRouter(): Router {
 
   router.use(healthRouter)
   router.use('/webhooks', createWebhooksRouter())
+  router.use('/auth/instagram', createInstagramAuthRouter())
 
   const apiRouter = Router()
 

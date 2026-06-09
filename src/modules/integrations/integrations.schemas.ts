@@ -26,3 +26,11 @@ export const whatsAppIntegrationMetadataSchema = z.object({
 })
 
 export type WhatsAppIntegrationMetadataInput = z.infer<typeof whatsAppIntegrationMetadataSchema>
+
+export const instagramIntegrationMetadataSchema = z.object({
+  ig_user_id: z.string().trim().min(1),
+  ig_username: z.string().trim().min(1),
+  messaging_account_id: z.string().trim().min(1).optional(),
+})
+
+export type InstagramIntegrationMetadataInput = z.infer<typeof instagramIntegrationMetadataSchema>
