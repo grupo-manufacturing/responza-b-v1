@@ -116,7 +116,7 @@ export async function fetchInstagramUserInfo(accessToken: string): Promise<{
     throw new AppError(502, 'BAD_REQUEST', `Failed to fetch Instagram user info: ${errorText}`)
   }
   
-  const user: InstagramUserResponse = await userResponse.json()
+  const user = (await userResponse.json()) as InstagramUserResponse
   
   if (!user.id) {
     throw new AppError(502, 'BAD_REQUEST', 'Instagram user ID not found')

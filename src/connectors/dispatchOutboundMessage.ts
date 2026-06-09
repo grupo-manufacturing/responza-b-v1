@@ -3,7 +3,7 @@ import { getWhatsAppCredentialsForOrganization, getInstagramCredentialsForOrgani
 import type { OutboundTextMessageInput, SendTextMessageResult } from './types.js'
 import type { WhatsAppIntegrationMetadata, InstagramIntegrationMetadata } from '../modules/integrations/integrations.types.js'
 import { whatsAppConnector } from './whatsapp/index.js'
-import { instagramConnector } from './instagram/index.js'
+import { sendInstagramTextMessage } from './instagram/index.js'
 
 export async function dispatchOutboundMessage(
   input: OutboundTextMessageInput,
@@ -54,7 +54,7 @@ async function dispatchInstagramMessage(
     throw new AppError(400, 'BAD_REQUEST', 'Conversation channel is not linked to Instagram')
   }
 
-  return instagramConnector.sendTextMessage({
+  return sendInstagramTextMessage({
     to: input.recipientExternalId,
     content: input.content,
     businessAccountId: (credentials.metadata as InstagramIntegrationMetadata).business_account_id,

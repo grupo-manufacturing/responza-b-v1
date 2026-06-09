@@ -11,7 +11,7 @@ import {
 } from './integrations.constants.js'
 import type { IntegrationPlatform } from './integrations.constants.js'
 import type { ConnectIntegrationBody } from './integrations.schemas.js'
-import { whatsAppIntegrationMetadataSchema, whatsAppSessionInfoSchema, instagramIntegrationMetadataSchema, instagramSessionInfoSchema } from './integrations.schemas.js'
+import { whatsAppIntegrationMetadataSchema, whatsAppSessionInfoSchema, instagramIntegrationMetadataSchema } from './integrations.schemas.js'
 import * as integrationsRepository from './integrations.repository.js'
 import type { IntegrationRecord } from './integrations.repository.js'
 import { toIntegrationCredentials } from './integrations.repository.js'

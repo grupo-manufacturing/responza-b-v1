@@ -1,6 +1,6 @@
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import type { Connector, SendTextMessageResult } from '../types.js'
+import type { SendTextMessageResult } from '../types.js'
 
 type InstagramMessagesResponse = {
   message_id?: string
@@ -112,7 +112,7 @@ export async function sendInstagramTextMessage(input: {
   }
 }
 
-export const instagramConnector: Connector = {
-  platform: 'instagram',
-  sendTextMessage: sendInstagramTextMessage
+export const instagramConnector = {
+  platform: 'instagram' as const,
+  sendTextMessage: sendInstagramTextMessage,
 }
