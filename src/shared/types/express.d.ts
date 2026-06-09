@@ -6,6 +6,7 @@ declare global {
     interface Request {
       auth?: AuthContext
       integrationPlatform?: IntegrationPlatform
+      rawBody?: Buffer
     }
   }
 }

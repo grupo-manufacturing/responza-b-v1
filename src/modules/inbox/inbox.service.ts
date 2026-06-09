@@ -1,5 +1,6 @@
+import { dispatchOutboundMessage } from '../../connectors/dispatchOutboundMessage.js'
 import type { AuthContext } from '../../shared/auth/index.js'
-import { AppError } from '../../shared/errors/index.js'
+import { AppError, isAppError } from '../../shared/errors/index.js'
 import {
   integrationPlatformFromApi,
   integrationPlatformToApi,
@@ -127,7 +128,7 @@ export async function sendMessage(
   conversationId: string,
   input: SendMessageBody,
 ) {
-  const conversation = await inboxRepository.findConversationById(
+  const conversation = await inboxRepository.findConversationSendContext(
     auth.organizationId,
     conversationId,
   )
@@ -142,8 +143,40 @@ export async function sendMessage(
     content: input.content,
   })
 
-  return {
-    message: toMessageResponse(message),
+  try {
+    const delivery = await dispatchOutboundMessage({
+      platform: conversation.platform,
+      organizationId: auth.organizationId,
+      integrationId: conversation.integration_id,
+      recipientExternalId: conversation.external_id,
+      content: input.content,
+    })
+
+    const updated = await inboxRepository.updateMessageDeliveryStatus({
+      organization_id: auth.organizationId,
+      message_id: message.id,
+      status: 'sent',
+      platform_message_id: delivery.platformMessageId,
+    })
+
+    return {
+      message: toMessageResponse(updated),
+    }
+  } catch (error) {
+    const updated = await inboxRepository.updateMessageDeliveryStatus({
+      organization_id: auth.organizationId,
+      message_id: message.id,
+      status: 'failed',
+      platform_message_id: null,
+    })
+
+    if (isAppError(error)) {
+      throw new AppError(error.statusCode, error.code, error.message, {
+        message: toMessageResponse(updated),
+      })
+    }
+
+    throw error
   }
 }
 

@@ -21,6 +21,11 @@ export type ConversationRecord = {
   created_at: string
 }
 
+export type ConversationSendContext = ConversationRecord & {
+  platform: IntegrationPlatform
+  integration_id: string
+}
+
 export type ConversationListRecord = ConversationRecord & {
   platform: IntegrationPlatform
   channel_display_name: string
@@ -128,6 +133,48 @@ export async function listConversations(
   }))
 }
 
+export async function findConversationSendContext(
+  organizationId: string,
+  conversationId: string,
+): Promise<ConversationSendContext | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('conversations')
+    .select(
+      `
+      ${CONVERSATION_COLUMNS},
+      channels!inner (
+        platform,
+        integration_id
+      )
+    `,
+    )
+    .eq('organization_id', organizationId)
+    .eq('id', conversationId)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load conversation')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  const channel = data.channels as Record<string, unknown> | Record<string, unknown>[] | null
+  const channelRow = Array.isArray(channel) ? channel[0] : channel
+
+  if (channelRow === null || channelRow === undefined) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load conversation channel')
+  }
+
+  return {
+    ...normalizeConversationRecord(data),
+    platform: channelRow.platform as IntegrationPlatform,
+    integration_id: channelRow.integration_id as string,
+  }
+}
+
 export async function findConversationById(
   organizationId: string,
   conversationId: string,
@@ -210,7 +257,7 @@ export async function insertOutboundMessage(
       direction: 'outbound',
       platform_message_id: null,
       content: input.content,
-      status: 'sent',
+      status: 'pending',
     })
     .select(MESSAGE_COLUMNS)
     .single()
@@ -227,6 +274,35 @@ export async function insertOutboundMessage(
 
   if (conversationError !== null) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
+  }
+
+  return normalizeMessageRecord(data)
+}
+
+export type UpdateMessageDeliveryStatusInput = {
+  organization_id: string
+  message_id: string
+  status: MessageStatus
+  platform_message_id?: string | null
+}
+
+export async function updateMessageDeliveryStatus(
+  input: UpdateMessageDeliveryStatusInput,
+): Promise<MessageRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .update({
+      status: input.status,
+      platform_message_id: input.platform_message_id ?? null,
+    })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.message_id)
+    .select(MESSAGE_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update message status')
   }
 
   return normalizeMessageRecord(data)

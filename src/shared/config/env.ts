@@ -12,6 +12,10 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   TRIAL_DURATION_DAYS: z.coerce.number().int().positive().default(7),
   SUBSCRIPTION_PERIOD_DAYS: z.coerce.number().int().positive().default(30),
+  WHATSAPP_GRAPH_VERSION: z.string().trim().min(1).default('v25.0'),
+  META_APP_ID: z.string().default(''),
+  META_APP_SECRET: z.string().default(''),
+  WEBHOOK_VERIFY_TOKEN: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>

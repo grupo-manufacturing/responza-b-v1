@@ -1,4 +1,7 @@
+import { exchangeWhatsAppAccessToken } from '../../connectors/whatsapp/exchangeAccessToken.js'
 import type { AuthContext } from '../../shared/auth/index.js'
+import { AppError } from '../../shared/errors/index.js'
+import * as inboxRepository from '../inbox/inbox.repository.js'
 import {
   SUPPORTED_PLATFORMS,
   integrationPlatformFromApi,
@@ -7,8 +10,11 @@ import {
 } from './integrations.constants.js'
 import type { IntegrationPlatform } from './integrations.constants.js'
 import type { ConnectIntegrationBody } from './integrations.schemas.js'
+import { whatsAppIntegrationMetadataSchema, whatsAppSessionInfoSchema } from './integrations.schemas.js'
 import * as integrationsRepository from './integrations.repository.js'
 import type { IntegrationRecord } from './integrations.repository.js'
+import { toIntegrationCredentials } from './integrations.repository.js'
+import type { IntegrationCredentials, WhatsAppIntegrationMetadata } from './integrations.types.js'
 
 function toIntegrationResponse(record: IntegrationRecord) {
   return {
@@ -23,6 +29,32 @@ function toDisconnectedResponse(platform: IntegrationPlatform) {
     platform: integrationPlatformToApi(platform),
     status: 'disconnected' as const,
   }
+}
+
+function toWhatsAppSummary(metadata: WhatsAppIntegrationMetadata) {
+  return {
+    phone_number_id: metadata.phone_number_id,
+    waba_id: metadata.waba_id,
+    business_id: metadata.business_id ?? null,
+  }
+}
+
+async function syncWhatsAppChannel(organizationId: string, integrationId: string) {
+  const existing = await inboxRepository.findChannelByIntegration({
+    organizationId,
+    integrationId,
+  })
+
+  if (existing !== null) {
+    return existing
+  }
+
+  return inboxRepository.insertChannel({
+    organization_id: organizationId,
+    integration_id: integrationId,
+    platform: 'whatsapp',
+    display_name: 'WhatsApp',
+  })
 }
 
 export async function listIntegrations(auth: AuthContext) {
@@ -44,17 +76,44 @@ export async function listIntegrations(auth: AuthContext) {
 export async function connectIntegration(
   auth: AuthContext,
   platformParam: string,
-  _body: ConnectIntegrationBody,
+  body: ConnectIntegrationBody,
 ) {
   const platform = integrationPlatformFromApi(platformParam)
-  const updated = await integrationsRepository.setIntegrationConnected(
-    auth.organizationId,
-    platform,
-  )
 
-  return {
-    integration: toIntegrationResponse(updated),
+  switch (platform) {
+    case 'whatsapp':
+      return connectWhatsAppIntegration(auth, body)
+    case 'instagram':
+    case 'indiamart':
+      throw new AppError(501, 'NOT_IMPLEMENTED', `${integrationPlatformToApi(platform)} connect is not implemented yet`)
+    default:
+      throw new AppError(400, 'BAD_REQUEST', `Unsupported platform: ${platform}`)
   }
+}
+
+async function connectWhatsAppIntegration(auth: AuthContext, body: ConnectIntegrationBody) {
+  const code = body.code?.trim()
+  if (code === undefined || code.length === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'code is required')
+  }
+
+  const sessionInfo = whatsAppSessionInfoSchema.parse(body.session_info ?? {})
+
+  const accessToken = await exchangeWhatsAppAccessToken(code)
+  const metadata = whatsAppIntegrationMetadataSchema.parse({
+    phone_number_id: sessionInfo.phone_number_id,
+    waba_id: sessionInfo.waba_id,
+    business_id: sessionInfo.business_id,
+  })
+
+  const result = await storeWhatsAppCredentials(auth.organizationId, {
+    accessToken,
+    metadata,
+  })
+
+  await syncWhatsAppChannel(auth.organizationId, result.integration.id)
+
+  return result
 }
 
 export async function disconnectIntegration(auth: AuthContext, platformParam: string) {
@@ -66,5 +125,88 @@ export async function disconnectIntegration(auth: AuthContext, platformParam: st
 
   return {
     integration: toIntegrationResponse(updated),
+  }
+}
+
+export async function storeWhatsAppCredentials(
+  organizationId: string,
+  input: {
+    accessToken: string
+    metadata: WhatsAppIntegrationMetadata
+  },
+) {
+  const metadata = whatsAppIntegrationMetadataSchema.parse(input.metadata)
+  const accessToken = input.accessToken.trim()
+
+  if (accessToken.length === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'access_token is required')
+  }
+
+  const integration = await integrationsRepository.upsertWhatsAppCredentials(organizationId, {
+    accessToken,
+    metadata,
+  })
+
+  return {
+    integration: toIntegrationResponse(integration),
+    whatsapp: toWhatsAppSummary(metadata),
+  }
+}
+
+export async function getWhatsAppCredentialsForOrganization(
+  organizationId: string,
+): Promise<IntegrationCredentials | null> {
+  const row = await integrationsRepository.findWhatsAppCredentialsByOrganization(organizationId)
+  if (row === null) {
+    return null
+  }
+
+  return toIntegrationCredentials(row)
+}
+
+export async function resolveWhatsAppIntegrationByPhoneNumberId(
+  phoneNumberId: string,
+): Promise<IntegrationCredentials | null> {
+  const normalized = phoneNumberId.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+
+  const row = await integrationsRepository.findConnectedWhatsAppByPhoneNumberId(normalized)
+  if (row === null) {
+    return null
+  }
+
+  return toIntegrationCredentials(row)
+}
+
+export async function resolveWhatsAppIntegrationByWabaId(
+  wabaId: string,
+): Promise<IntegrationCredentials | null> {
+  const normalized = wabaId.trim()
+  if (normalized.length === 0) {
+    return null
+  }
+
+  const row = await integrationsRepository.findConnectedWhatsAppByWabaId(normalized)
+  if (row === null) {
+    return null
+  }
+
+  return toIntegrationCredentials(row)
+}
+
+export async function getWhatsAppConnectionSummary(auth: AuthContext) {
+  const credentials = await getWhatsAppCredentialsForOrganization(auth.organizationId)
+  if (credentials === null) {
+    return {
+      connected: false,
+      whatsapp: null,
+    }
+  }
+
+  return {
+    connected: true,
+    whatsapp: toWhatsAppSummary(credentials.metadata),
   }
 }
