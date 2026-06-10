@@ -3,6 +3,7 @@ import { exchangeInstagramAccessToken, fetchInstagramUserInfo } from '../../conn
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import * as inboxRepository from '../inbox/inbox.repository.js'
+import { backfillInstagramParticipantProfiles } from '../inbox/instagramParticipant.enrichment.js'
 import {
   SUPPORTED_PLATFORMS,
   integrationPlatformFromApi,
@@ -167,6 +168,12 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
   })
 
   await syncInstagramChannel(auth.organizationId, result.integration.id)
+  await backfillInstagramParticipantProfiles(auth.organizationId).catch((error: unknown) => {
+    console.warn('[instagram] profile backfill after connect failed', {
+      organizationId: auth.organizationId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
 
   return result
 }

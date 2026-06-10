@@ -79,13 +79,15 @@ export function parseInstagramInboundMessages(body: unknown): InstagramInboundMe
         continue
       }
 
-      // Skip if this is an outbound message (sender is our business account)
+      // Skip outbound echoes (sender is the connected business account).
       if (from === businessAccountId || from === recipientId) {
         continue
       }
 
-      // Generate platform message ID (Instagram doesn't provide one in webhooks like WhatsApp)
-      const platformMessageId = `ig_${Date.now()}_${from}_${Math.random().toString(36).substr(2, 9)}`
+      const platformMessageId =
+        asString(message.id) ??
+        asString(message.mid) ??
+        `ig_${Date.now()}_${from}_${Math.random().toString(36).slice(2, 11)}`
 
       inbound.push({
         businessAccountId,

@@ -94,10 +94,9 @@ export async function enrichInstagramConversationList(
         return
       }
 
-      if (
-        conversation.contact_participant_id === null ||
-        conversation.contact_platform_user_id === null
-      ) {
+      const platformUserId =
+        conversation.contact_platform_user_id ?? conversation.external_id.trim()
+      if (platformUserId.length === 0) {
         return
       }
 
@@ -105,43 +104,75 @@ export async function enrichInstagramConversationList(
         conversation.contact_display_name === null ||
         conversation.contact_avatar_url === null ||
         isInstagramPlaceholderDisplayName(
-          conversation.contact_display_name,
-          conversation.contact_platform_user_id,
+          conversation.contact_display_name ?? '',
+          platformUserId,
         )
 
       if (!needsEnrichment) {
         return
       }
 
-      const presentation = await resolveInstagramParticipantPresentation({
-        platformUserId: conversation.contact_platform_user_id,
-        accessToken: credentials.accessToken,
-        fallbackDisplayName:
-          conversation.contact_display_name ?? conversation.contact_platform_user_id,
-      })
+      try {
+        const presentation = await resolveInstagramParticipantPresentation({
+          platformUserId,
+          accessToken: credentials.accessToken,
+          fallbackDisplayName: conversation.contact_display_name ?? `@${platformUserId}`,
+        })
 
-      const shouldUpdate =
-        presentation.displayName !== conversation.contact_display_name ||
-        presentation.avatarUrl !== conversation.contact_avatar_url
+        const shouldUpdate =
+          presentation.displayName !== conversation.contact_display_name ||
+          presentation.avatarUrl !== conversation.contact_avatar_url
 
-      if (!shouldUpdate) {
-        return
-      }
+        if (!shouldUpdate) {
+          return
+        }
 
-      await inboxRepository.updateParticipantProfile({
-        organization_id: organizationId,
-        participant_id: conversation.contact_participant_id,
-        display_name: presentation.displayName,
-        avatar_url: presentation.avatarUrl,
-      })
+        let participantId = conversation.contact_participant_id
+        if (participantId === null) {
+          const participant = await inboxRepository.findParticipant({
+            organizationId,
+            conversationId: conversation.id,
+            platformUserId,
+          })
+          participantId = participant?.id ?? null
+        }
 
-      enriched[index] = {
-        ...conversation,
-        contact_display_name: presentation.displayName,
-        contact_avatar_url: presentation.avatarUrl,
+        if (participantId !== null) {
+          await inboxRepository.updateParticipantProfile({
+            organization_id: organizationId,
+            participant_id: participantId,
+            display_name: presentation.displayName,
+            avatar_url: presentation.avatarUrl,
+          })
+        }
+
+        enriched[index] = {
+          ...conversation,
+          contact_display_name: presentation.displayName,
+          contact_avatar_url: presentation.avatarUrl,
+        }
+      } catch (error) {
+        console.warn('[instagram] conversation profile enrichment failed', {
+          conversationId: conversation.id,
+          platformUserId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }),
   )
 
   return enriched
+}
+
+export async function backfillInstagramParticipantProfiles(organizationId: string): Promise<void> {
+  const conversations = await inboxRepository.listConversations({
+    organizationId,
+    platform: 'instagram',
+  })
+
+  if (conversations.length === 0) {
+    return
+  }
+
+  await enrichInstagramConversationList(organizationId, conversations)
 }
