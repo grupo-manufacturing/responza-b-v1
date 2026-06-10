@@ -11,6 +11,11 @@ import {
   messageStatusToApi,
 } from './inbox.constants.js'
 import type { ListInboxQuery, SendMessageBody } from './inbox.schemas.js'
+import { getInstagramCredentialsForOrganization } from '../integrations/integrations.service.js'
+import {
+  enrichInstagramConversationList,
+  enrichInstagramParticipantRecord,
+} from './instagramParticipant.enrichment.js'
 import * as inboxRepository from './inbox.repository.js'
 import type {
   ConversationListRecord,
@@ -96,13 +101,18 @@ export async function listConversations(auth: AuthContext, query: ListInboxQuery
       query.platform !== undefined ? integrationPlatformFromApi(query.platform) : undefined,
   })
 
+  const enrichedConversations = await enrichInstagramConversationList(
+    auth.organizationId,
+    conversations,
+  )
+
   return {
-    conversations: conversations.map(toConversationListItem),
+    conversations: enrichedConversations.map(toConversationListItem),
   }
 }
 
 export async function getConversation(auth: AuthContext, conversationId: string) {
-  const conversation = await inboxRepository.findConversationById(
+  const conversation = await inboxRepository.findConversationSendContext(
     auth.organizationId,
     conversationId,
   )
@@ -116,9 +126,25 @@ export async function getConversation(auth: AuthContext, conversationId: string)
     inboxRepository.listMessagesByConversationId(auth.organizationId, conversationId),
   ])
 
+  let enrichedParticipants = participants
+  if (conversation.platform === 'instagram') {
+    const credentials = await getInstagramCredentialsForOrganization(auth.organizationId)
+    if (credentials !== null) {
+      enrichedParticipants = await Promise.all(
+        participants.map((participant) =>
+          enrichInstagramParticipantRecord({
+            organizationId: auth.organizationId,
+            participant,
+            accessToken: credentials.accessToken,
+          }),
+        ),
+      )
+    }
+  }
+
   return {
     conversation: toConversationResponse(conversation),
-    participants: participants.map(toParticipantResponse),
+    participants: enrichedParticipants.map(toParticipantResponse),
     messages: messages.map(toMessageResponse),
   }
 }
@@ -223,6 +249,17 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       display_name: input.participant.displayName,
       avatar_url: input.participant.avatarUrl ?? null,
     })
+  }
+
+  if (input.platform === 'instagram') {
+    const credentials = await getInstagramCredentialsForOrganization(input.organizationId)
+    if (credentials !== null) {
+      participant = await enrichInstagramParticipantRecord({
+        organizationId: input.organizationId,
+        participant,
+        accessToken: credentials.accessToken,
+      })
+    }
   }
 
   const message = await inboxRepository.insertInboundMessage({

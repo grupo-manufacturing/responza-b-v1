@@ -29,6 +29,8 @@ export type ConversationSendContext = ConversationRecord & {
 export type ConversationListRecord = ConversationRecord & {
   platform: IntegrationPlatform
   channel_display_name: string
+  contact_participant_id: string | null
+  contact_platform_user_id: string | null
   contact_display_name: string | null
   contact_avatar_url: string | null
   last_message_content: string | null
@@ -84,6 +86,8 @@ export async function listConversations(
         display_name
       ),
       participants (
+        id,
+        platform_user_id,
         display_name,
         avatar_url
       )
@@ -471,6 +475,35 @@ export async function insertParticipant(input: InsertParticipantInput): Promise<
   return normalizeParticipantRecord(data)
 }
 
+export type UpdateParticipantProfileInput = {
+  organization_id: string
+  participant_id: string
+  display_name: string
+  avatar_url: string | null
+}
+
+export async function updateParticipantProfile(
+  input: UpdateParticipantProfileInput,
+): Promise<ParticipantRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('participants')
+    .update({
+      display_name: input.display_name,
+      avatar_url: input.avatar_url,
+    })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.participant_id)
+    .select(PARTICIPANT_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update participant profile')
+  }
+
+  return normalizeParticipantRecord(data)
+}
+
 export type InsertInboundMessageInput = {
   organization_id: string
   conversation_id: string
@@ -555,8 +588,18 @@ function normalizeConversationListRecord(row: Record<string, unknown>): Conversa
   }
 
   const participants = row.participants as
-    | Array<{ display_name: string; avatar_url: string | null }>
-    | { display_name: string; avatar_url: string | null }
+    | Array<{
+        id: string
+        platform_user_id: string
+        display_name: string
+        avatar_url: string | null
+      }>
+    | {
+        id: string
+        platform_user_id: string
+        display_name: string
+        avatar_url: string | null
+      }
     | null
   const participantRows = Array.isArray(participants)
     ? participants
@@ -569,6 +612,8 @@ function normalizeConversationListRecord(row: Record<string, unknown>): Conversa
     ...normalizeConversationRecord(row),
     platform: channelRow.platform as IntegrationPlatform,
     channel_display_name: channelRow.display_name as string,
+    contact_participant_id: primaryParticipant?.id ?? null,
+    contact_platform_user_id: primaryParticipant?.platform_user_id ?? null,
     contact_display_name: primaryParticipant?.display_name ?? null,
     contact_avatar_url: primaryParticipant?.avatar_url ?? null,
     last_message_content: null,

@@ -2,6 +2,7 @@ import { parseInstagramInboundMessages } from '../../connectors/instagram/parseW
 import { verifyInstagramWebhookSignature } from '../../connectors/instagram/verifyWebhookSignature.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
+import { resolveInstagramParticipantPresentation } from '../inbox/instagramParticipant.enrichment.js'
 import {
   resolveInstagramIntegrationByBusinessId,
 } from '../integrations/integrations.service.js'
@@ -78,6 +79,16 @@ export async function processInstagramWebhook(input: {
         continue
       }
 
+      const fallbackDisplayName = formatInstagramDisplayName(
+        inbound.from,
+        inbound.contactDisplayName,
+      )
+      const presentation = await resolveInstagramParticipantPresentation({
+        platformUserId: inbound.from,
+        accessToken: integration.accessToken,
+        fallbackDisplayName,
+      })
+
       await receiveInboundMessage({
         organizationId: integration.organizationId,
         integrationId: integration.integrationId,
@@ -86,7 +97,8 @@ export async function processInstagramWebhook(input: {
         conversationExternalId: inbound.from,
         participant: {
           platformUserId: inbound.from,
-          displayName: formatInstagramDisplayName(inbound.from, inbound.contactDisplayName),
+          displayName: presentation.displayName,
+          avatarUrl: presentation.avatarUrl,
         },
         message: {
           platformMessageId: inbound.platformMessageId,
