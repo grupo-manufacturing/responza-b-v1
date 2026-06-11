@@ -39,4 +39,5 @@ export const instagramIntegrationMetadataSchema = z.object({
   business_account_id: z.string().trim().min(1),
   user_id: z.string().trim().min(1),
   username: z.string().trim().min(1).optional(),
+  profile_picture_url: z.string().trim().url().optional(),
 })

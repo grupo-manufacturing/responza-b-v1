@@ -46,11 +46,15 @@ function toWhatsAppSummary(metadata: WhatsAppIntegrationMetadata) {
   }
 }
 
-function toInstagramSummary(metadata: InstagramIntegrationMetadata) {
+function toInstagramSummary(
+  metadata: InstagramIntegrationMetadata,
+  profilePictureUrl?: string | null,
+) {
   return {
     business_account_id: metadata.business_account_id,
     user_id: metadata.user_id,
     username: metadata.username ?? null,
+    profile_picture_url: profilePictureUrl ?? metadata.profile_picture_url ?? null,
   }
 }
 
@@ -132,6 +136,7 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
     business_account_id: userInfo.business_account_id,
     user_id: userInfo.user_id,
     username: userInfo.username,
+    profile_picture_url: userInfo.profile_picture_url,
   })
 
   const result = await storeInstagramCredentials(auth.organizationId, {
@@ -236,8 +241,17 @@ export async function getInstagramConnectionSummary(auth: AuthContext) {
     }
   }
 
+  const metadata = credentials.metadata as InstagramIntegrationMetadata
+  let profilePictureUrl = metadata.profile_picture_url ?? null
+
+  try {
+    const userInfo = await fetchInstagramUserInfo(credentials.accessToken)
+    profilePictureUrl = userInfo.profile_picture_url ?? profilePictureUrl
+  } catch {
+  }
+
   return {
     connected: true,
-    instagram: toInstagramSummary(credentials.metadata as InstagramIntegrationMetadata),
+    instagram: toInstagramSummary(metadata, profilePictureUrl),
   }
 }

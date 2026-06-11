@@ -74,10 +74,14 @@ export function normalizeIntegrationCredentialsRow(
     }
 
     const username = metadata.username
+    const profilePictureUrl = metadata.profile_picture_url
     normalizedMetadata = {
       business_account_id: businessAccountId,
       user_id: userId,
       ...(typeof username === 'string' && username.length > 0 ? { username } : {}),
+      ...(typeof profilePictureUrl === 'string' && profilePictureUrl.length > 0
+        ? { profile_picture_url: profilePictureUrl }
+        : {}),
     }
   } else {
     throw new AppError(

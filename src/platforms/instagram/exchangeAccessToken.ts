@@ -88,15 +88,17 @@ type InstagramUserResponse = {
   user_id?: string
   username?: string
   account_type?: string
+  profile_picture_url?: string
 }
 
 export async function fetchInstagramUserInfo(accessToken: string): Promise<{
   business_account_id: string
   user_id: string
   username?: string
+  profile_picture_url?: string
 }> {
   const userResponse = await fetch(
-    `https://graph.instagram.com/me?fields=user_id,username,account_type&access_token=${encodeURIComponent(accessToken)}`,
+    `https://graph.instagram.com/me?fields=user_id,username,account_type,profile_picture_url&access_token=${encodeURIComponent(accessToken)}`,
   )
 
   if (!userResponse.ok) {
@@ -115,5 +117,6 @@ export async function fetchInstagramUserInfo(accessToken: string): Promise<{
     business_account_id: userId,
     user_id: userId,
     username: user.username,
+    profile_picture_url: user.profile_picture_url,
   }
 }

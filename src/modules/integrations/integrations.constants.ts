@@ -15,6 +15,7 @@ export type InstagramIntegrationMetadata = {
   business_account_id: string
   user_id: string
   username?: string
+  profile_picture_url?: string
 }
 
 export type IntegrationCredentials = {
