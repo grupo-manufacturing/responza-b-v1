@@ -2,8 +2,8 @@ import { Router } from 'express'
 
 import { validateRequest } from '../../shared/middleware/index.js'
 import type { AuthSessionPayload } from '../../shared/auth/index.js'
-import { loginBodySchema, registerBodySchema } from './auth.schemas.js'
 import * as authService from './auth.service.js'
+import { loginBodySchema, registerBodySchema } from './auth.service.js'
 
 function toSessionResponse(payload: AuthSessionPayload) {
   return {

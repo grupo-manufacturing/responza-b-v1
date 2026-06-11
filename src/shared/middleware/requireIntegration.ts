@@ -2,13 +2,11 @@ import type { NextFunction, Request, Response } from 'express'
 
 import * as integrationsRepository from '../../modules/integrations/integrations.repository.js'
 import {
-  integrationPlatformFromApi,
   integrationPlatformToApi,
-  isSupportedPlatform,
   SUPPORTED_PLATFORMS,
+  type IntegrationPlatform,
 } from '../../modules/integrations/integrations.constants.js'
 import { AppError } from '../errors/index.js'
-import type { IntegrationPlatform } from '../../modules/integrations/integrations.constants.js'
 
 type RequireIntegrationOptions = {
   platform?: IntegrationPlatform
@@ -50,19 +48,5 @@ export function requireIntegrationMiddleware(options: RequireIntegrationOptions 
     } catch (error) {
       next(error)
     }
-  }
-}
-
-export function requireIntegrationPlatformFromParams(paramName = 'platform') {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    const value = req.params[paramName]
-
-    if (typeof value !== 'string' || !isSupportedPlatform(value)) {
-      next(new AppError(400, 'VALIDATION_ERROR', 'Invalid integration platform'))
-      return
-    }
-
-    req.integrationPlatform = integrationPlatformFromApi(value)
-    next()
   }
 }

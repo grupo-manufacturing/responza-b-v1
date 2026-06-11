@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import {
   type AuthContext,
   type AuthSessionPayload,
@@ -5,8 +7,21 @@ import {
 import { getSupabaseAdminClient, getSupabaseAuthClient } from '../../shared/database/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { getSubscriptionForOrganization } from '../subscription/subscription.service.js'
-import type { LoginBody, RegisterBody } from './auth.schemas.js'
 import * as authRepository from './auth.repository.js'
+
+export const registerBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  name: z.string().trim().min(1).max(160),
+})
+
+export const loginBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1).max(128),
+})
+
+export type RegisterBody = z.infer<typeof registerBodySchema>
+export type LoginBody = z.infer<typeof loginBodySchema>
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
 
 function toAuthContext(organization: Pick<OrganizationRecord, 'id' | 'email' | 'name'>): AuthContext {

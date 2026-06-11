@@ -1,6 +1,11 @@
-import { dispatchOutboundMessage } from '../../connectors/dispatchOutboundMessage.js'
+import { dispatchOutboundMessage } from '../../platforms/dispatchOutboundMessage.js'
+import {
+  enrichInstagramConversationList,
+  enrichInstagramParticipantRecord,
+} from '../../platforms/instagram/enrichment.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError, isAppError } from '../../shared/errors/index.js'
+import { getInstagramCredentialsForOrganization } from '../integrations/credentials.service.js'
 import {
   integrationPlatformFromApi,
   integrationPlatformToApi,
@@ -9,13 +14,9 @@ import {
 import {
   messageDirectionToApi,
   messageStatusToApi,
-} from './inbox.constants.js'
-import type { ListInboxQuery, SendMessageBody } from './inbox.schemas.js'
-import { getInstagramCredentialsForOrganization } from '../integrations/integrations.service.js'
-import {
-  enrichInstagramConversationList,
-  enrichInstagramParticipantRecord,
-} from './instagramParticipant.enrichment.js'
+  type ListInboxQuery,
+  type SendMessageBody,
+} from './inbox.schemas.js'
 import * as inboxRepository from './inbox.repository.js'
 import type {
   ConversationListRecord,
@@ -39,6 +40,29 @@ export type ReceiveInboundMessageInput = {
     platformMessageId: string
     content: string
   }
+}
+
+export async function syncChannel(
+  organizationId: string,
+  integrationId: string,
+  platform: IntegrationPlatform,
+  displayName: string,
+) {
+  const existing = await inboxRepository.findChannelByIntegration({
+    organizationId,
+    integrationId,
+  })
+
+  if (existing !== null) {
+    return existing
+  }
+
+  return inboxRepository.insertChannel({
+    organization_id: organizationId,
+    integration_id: integrationId,
+    platform,
+    display_name: displayName,
+  })
 }
 
 function toConversationListItem(conversation: ConversationListRecord) {

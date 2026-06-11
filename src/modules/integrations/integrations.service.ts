@@ -1,22 +1,27 @@
-import { exchangeWhatsAppAccessToken } from '../../connectors/whatsapp/exchangeAccessToken.js'
-import { exchangeInstagramAccessToken, fetchInstagramUserInfo } from '../../connectors/instagram/exchangeAccessToken.js'
+import { exchangeWhatsAppAccessToken } from '../../platforms/whatsapp/exchangeAccessToken.js'
+import { exchangeInstagramAccessToken, fetchInstagramUserInfo } from '../../platforms/instagram/exchangeAccessToken.js'
+import { backfillInstagramParticipantProfiles } from '../../platforms/instagram/enrichment.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import * as inboxRepository from '../inbox/inbox.repository.js'
-import { backfillInstagramParticipantProfiles } from '../inbox/instagramParticipant.enrichment.js'
+import { logger } from '../../shared/logger.js'
+import { syncChannel } from '../inbox/inbox.service.js'
+import {
+  getInstagramCredentialsForOrganization,
+  getWhatsAppCredentialsForOrganization,
+} from './credentials.service.js'
 import {
   SUPPORTED_PLATFORMS,
   integrationPlatformFromApi,
   integrationPlatformToApi,
   integrationStatusToApi,
+  type IntegrationPlatform,
+  type InstagramIntegrationMetadata,
+  type WhatsAppIntegrationMetadata,
 } from './integrations.constants.js'
-import type { IntegrationPlatform } from './integrations.constants.js'
 import type { ConnectIntegrationBody } from './integrations.schemas.js'
 import { whatsAppIntegrationMetadataSchema, whatsAppSessionInfoSchema, instagramIntegrationMetadataSchema } from './integrations.schemas.js'
 import * as integrationsRepository from './integrations.repository.js'
 import type { IntegrationRecord } from './integrations.repository.js'
-import { toIntegrationCredentials } from './integrations.repository.js'
-import type { IntegrationCredentials, WhatsAppIntegrationMetadata, InstagramIntegrationMetadata } from './integrations.types.js'
 
 function toIntegrationResponse(record: IntegrationRecord) {
   return {
@@ -49,40 +54,9 @@ function toInstagramSummary(metadata: InstagramIntegrationMetadata) {
   }
 }
 
-async function syncWhatsAppChannel(organizationId: string, integrationId: string) {
-  const existing = await inboxRepository.findChannelByIntegration({
-    organizationId,
-    integrationId,
-  })
-
-  if (existing !== null) {
-    return existing
-  }
-
-  return inboxRepository.insertChannel({
-    organization_id: organizationId,
-    integration_id: integrationId,
-    platform: 'whatsapp',
-    display_name: 'WhatsApp',
-  })
-}
-
-async function syncInstagramChannel(organizationId: string, integrationId: string) {
-  const existing = await inboxRepository.findChannelByIntegration({
-    organizationId,
-    integrationId,
-  })
-
-  if (existing !== null) {
-    return existing
-  }
-
-  return inboxRepository.insertChannel({
-    organization_id: organizationId,
-    integration_id: integrationId,
-    platform: 'instagram',
-    display_name: 'Instagram',
-  })
+const CHANNEL_DISPLAY_NAMES: Record<'whatsapp' | 'instagram', string> = {
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
 }
 
 export async function listIntegrations(auth: AuthContext) {
@@ -140,7 +114,7 @@ async function connectWhatsAppIntegration(auth: AuthContext, body: ConnectIntegr
     metadata,
   })
 
-  await syncWhatsAppChannel(auth.organizationId, result.integration.id)
+  await syncChannel(auth.organizationId, result.integration.id, 'whatsapp', CHANNEL_DISPLAY_NAMES.whatsapp)
 
   return result
 }
@@ -152,10 +126,8 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
   }
 
   const accessToken = await exchangeInstagramAccessToken(code, body.redirect_uri)
-  
-  // Fetch user info using the access token
   const userInfo = await fetchInstagramUserInfo(accessToken)
-  
+
   const metadata = instagramIntegrationMetadataSchema.parse({
     business_account_id: userInfo.business_account_id,
     user_id: userInfo.user_id,
@@ -167,9 +139,9 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
     metadata,
   })
 
-  await syncInstagramChannel(auth.organizationId, result.integration.id)
+  await syncChannel(auth.organizationId, result.integration.id, 'instagram', CHANNEL_DISPLAY_NAMES.instagram)
   await backfillInstagramParticipantProfiles(auth.organizationId).catch((error: unknown) => {
-    console.warn('[instagram] profile backfill after connect failed', {
+    logger.warn('[instagram] profile backfill after connect failed', {
       organizationId: auth.organizationId,
       error: error instanceof Error ? error.message : String(error),
     })
@@ -190,7 +162,7 @@ export async function disconnectIntegration(auth: AuthContext, platformParam: st
   }
 }
 
-export async function storeWhatsAppCredentials(
+async function storeWhatsAppCredentials(
   organizationId: string,
   input: {
     accessToken: string
@@ -215,7 +187,7 @@ export async function storeWhatsAppCredentials(
   }
 }
 
-export async function storeInstagramCredentials(
+async function storeInstagramCredentials(
   organizationId: string,
   input: {
     accessToken: string
@@ -238,76 +210,6 @@ export async function storeInstagramCredentials(
     integration: toIntegrationResponse(integration),
     instagram: toInstagramSummary(metadata),
   }
-}
-
-export async function getWhatsAppCredentialsForOrganization(
-  organizationId: string,
-): Promise<IntegrationCredentials | null> {
-  const row = await integrationsRepository.findWhatsAppCredentialsByOrganization(organizationId)
-  if (row === null) {
-    return null
-  }
-
-  return toIntegrationCredentials(row)
-}
-
-export async function resolveWhatsAppIntegrationByPhoneNumberId(
-  phoneNumberId: string,
-): Promise<IntegrationCredentials | null> {
-  const normalized = phoneNumberId.trim()
-  if (normalized.length === 0) {
-    return null
-  }
-
-  const row = await integrationsRepository.findConnectedWhatsAppByPhoneNumberId(normalized)
-  if (row === null) {
-    return null
-  }
-
-  return toIntegrationCredentials(row)
-}
-
-export async function resolveWhatsAppIntegrationByWabaId(
-  wabaId: string,
-): Promise<IntegrationCredentials | null> {
-  const normalized = wabaId.trim()
-  if (normalized.length === 0) {
-    return null
-  }
-
-  const row = await integrationsRepository.findConnectedWhatsAppByWabaId(normalized)
-  if (row === null) {
-    return null
-  }
-
-  return toIntegrationCredentials(row)
-}
-
-export async function getInstagramCredentialsForOrganization(
-  organizationId: string,
-): Promise<IntegrationCredentials | null> {
-  const row = await integrationsRepository.findInstagramCredentialsByOrganization(organizationId)
-  if (row === null) {
-    return null
-  }
-
-  return toIntegrationCredentials(row)
-}
-
-export async function resolveInstagramIntegrationByBusinessId(
-  businessAccountId: string,
-): Promise<IntegrationCredentials | null> {
-  const normalized = businessAccountId.trim()
-  if (normalized.length === 0) {
-    return null
-  }
-
-  const row = await integrationsRepository.findConnectedInstagramByBusinessId(normalized)
-  if (row === null) {
-    return null
-  }
-
-  return toIntegrationCredentials(row)
 }
 
 export async function getWhatsAppConnectionSummary(auth: AuthContext) {

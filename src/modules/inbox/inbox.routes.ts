@@ -13,7 +13,7 @@ import {
 } from './inbox.schemas.js'
 import * as inboxService from './inbox.service.js'
 
-export function createInboxRouter(): Router {
+export function createConversationsRouter(): Router {
   const router = Router()
 
   router.use(requireIntegrationMiddleware())
@@ -26,14 +26,6 @@ export function createInboxRouter(): Router {
       })
       .catch(next)
   })
-
-  return router
-}
-
-export function createConversationsRouter(): Router {
-  const router = Router()
-
-  router.use(requireIntegrationMiddleware())
 
   router.get('/:id', validateRequest({ params: conversationIdParamsSchema }), (req, res, next) => {
     const { id } = req.params as { id: string }

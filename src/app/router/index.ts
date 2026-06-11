@@ -1,17 +1,17 @@
 import { Router } from 'express'
 
 import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
-import { createBusinessDetailsRouter } from '../../modules/business-details/business-details.routes.js'
-import { createConversationsRouter, createInboxRouter } from '../../modules/inbox/inbox.routes.js'
+import { createBusinessRouter } from '../../modules/business/business.routes.js'
+import { createConversationsRouter } from '../../modules/inbox/inbox.routes.js'
 import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
+import { createInstagramOAuthRouter } from '../../modules/integrations/oauth/instagram.routes.js'
 import { createLeadsRouter } from '../../modules/leads/leads.routes.js'
+import { createMessagingRouter } from '../../modules/messaging/messaging.routes.js'
 import { createSubscriptionRouter } from '../../modules/subscription/subscription.routes.js'
 import {
   authenticateMiddleware,
   requireActiveSubscriptionMiddleware,
 } from '../../shared/middleware/index.js'
-import { createInstagramOAuthRouter } from '../../modules/integrations/instagram-oauth.routes.js'
-import { createWebhooksRouter } from '../../modules/webhooks/webhooks.routes.js'
 import { healthRouter } from './health.routes.js'
 
 export function createAppRouter(): Router {
@@ -19,7 +19,7 @@ export function createAppRouter(): Router {
 
   router.use(healthRouter)
   router.use('/auth', createInstagramOAuthRouter())
-  router.use('/webhooks', createWebhooksRouter())
+  router.use('/webhooks', createMessagingRouter())
 
   const apiRouter = Router()
 
@@ -32,10 +32,9 @@ export function createAppRouter(): Router {
 
   const subscriptionGatedRouter = Router()
   subscriptionGatedRouter.use(requireActiveSubscriptionMiddleware)
-  subscriptionGatedRouter.use('/business-details', createBusinessDetailsRouter())
+  subscriptionGatedRouter.use('/business', createBusinessRouter())
   subscriptionGatedRouter.use('/leads', createLeadsRouter())
   subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
-  subscriptionGatedRouter.use('/inbox', createInboxRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
 
   protectedApiRouter.use(subscriptionGatedRouter)

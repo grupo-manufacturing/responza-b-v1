@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 
 import { isAppError } from '../errors/index.js'
+import { logger } from '../logger.js'
 
 type ErrorResponseBody = {
   error: {
@@ -35,7 +36,7 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
     return
   }
 
-  console.error(error)
+  logger.error(error)
 
   const body: ErrorResponseBody = {
     error: {
