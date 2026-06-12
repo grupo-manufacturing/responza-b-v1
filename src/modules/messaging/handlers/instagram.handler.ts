@@ -1,4 +1,7 @@
-import { parseInstagramInboundMessages } from '../../../platforms/instagram/parseWebhook.js'
+import {
+  parseInstagramInboundMessages,
+  parseInstagramOutboundReadReceipts,
+} from '../../../platforms/instagram/parseWebhook.js'
 import { verifyMetaWebhookSignature } from '../../../platforms/shared/webhookSignature.js'
 import { verifyMetaWebhookChallenge, type WebhookVerifyQuery } from '../../../platforms/shared/webhookChallenge.js'
 import { resolveInstagramParticipantPresentation } from '../../../platforms/instagram/enrichment.js'
@@ -6,7 +9,7 @@ import { loadEnv } from '../../../shared/config/index.js'
 import { AppError } from '../../../shared/errors/index.js'
 import type { IntegrationCredentials } from '../../integrations/integrations.constants.js'
 import { resolveInstagramIntegrationByBusinessId } from '../../integrations/credentials.service.js'
-import { receiveInboundMessage } from '../../inbox/inbox.service.js'
+import { markOutboundMessageRead, receiveInboundMessage } from '../../inbox/inbox.service.js'
 
 function formatInstagramDisplayName(igsid: string, contactName: string | null): string {
   if (contactName !== null) {
@@ -47,6 +50,26 @@ export async function processInstagramWebhook(input: {
   }
 
   const inboundMessages = parseInstagramInboundMessages(input.body)
+  const readReceipts = parseInstagramOutboundReadReceipts(input.body)
+
+  for (const receipt of readReceipts) {
+    try {
+      const integration = await resolveIntegrationForInbound({
+        businessAccountId: receipt.businessAccountId,
+      })
+
+      if (integration === null) {
+        continue
+      }
+
+      await markOutboundMessageRead({
+        organizationId: integration.organizationId,
+        platformMessageId: receipt.platformMessageId,
+      })
+    } catch {
+      continue
+    }
+  }
 
   for (const inbound of inboundMessages) {
     try {

@@ -1,4 +1,7 @@
-import { parseWhatsAppInboundMessages } from '../../../platforms/whatsapp/parseWebhook.js'
+import {
+  parseWhatsAppInboundMessages,
+  parseWhatsAppOutboundReadReceipts,
+} from '../../../platforms/whatsapp/parseWebhook.js'
 import { verifyMetaWebhookSignature } from '../../../platforms/shared/webhookSignature.js'
 import { verifyMetaWebhookChallenge, type WebhookVerifyQuery } from '../../../platforms/shared/webhookChallenge.js'
 import { loadEnv } from '../../../shared/config/index.js'
@@ -8,7 +11,7 @@ import {
   resolveWhatsAppIntegrationByPhoneNumberId,
   resolveWhatsAppIntegrationByWabaId,
 } from '../../integrations/credentials.service.js'
-import { receiveInboundMessage } from '../../inbox/inbox.service.js'
+import { markOutboundMessageRead, receiveInboundMessage } from '../../inbox/inbox.service.js'
 
 function formatWhatsAppDisplayName(waId: string, contactName: string | null): string {
   if (contactName !== null) {
@@ -62,6 +65,27 @@ export async function processWhatsAppWebhook(input: {
   }
 
   const inboundMessages = parseWhatsAppInboundMessages(input.body)
+  const readReceipts = parseWhatsAppOutboundReadReceipts(input.body)
+
+  for (const receipt of readReceipts) {
+    try {
+      const integration = await resolveIntegrationForInbound({
+        phoneNumberId: receipt.phoneNumberId,
+        wabaId: receipt.wabaId,
+      })
+
+      if (integration === null) {
+        continue
+      }
+
+      await markOutboundMessageRead({
+        organizationId: integration.organizationId,
+        platformMessageId: receipt.platformMessageId,
+      })
+    } catch {
+      continue
+    }
+  }
 
   for (const inbound of inboundMessages) {
     try {

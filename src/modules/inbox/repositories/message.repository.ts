@@ -75,6 +75,47 @@ export type UpdateMessageDeliveryStatusInput = {
   platform_message_id?: string | null
 }
 
+export async function markOutboundMessageReadByPlatformId(input: {
+  organization_id: string
+  platform_message_id: string
+}): Promise<MessageRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data: existing, error: findError } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('platform_message_id', input.platform_message_id)
+    .eq('direction', 'outbound')
+    .maybeSingle()
+
+  if (findError !== null || existing === null) {
+    return null
+  }
+
+  const currentStatus = existing.status as MessageStatus
+  if (currentStatus === 'read') {
+    return normalizeMessageRecord(existing)
+  }
+
+  if (currentStatus !== 'sent') {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('messages')
+    .update({ status: 'read' })
+    .eq('organization_id', input.organization_id)
+    .eq('id', existing.id as string)
+    .select(MESSAGE_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    return null
+  }
+
+  return normalizeMessageRecord(data)
+}
+
 export async function updateMessageDeliveryStatus(
   input: UpdateMessageDeliveryStatusInput,
 ): Promise<MessageRecord> {

@@ -10,6 +10,12 @@ export type WhatsAppInboundMessage = {
   contactDisplayName: string | null
 }
 
+export type WhatsAppOutboundReadReceipt = {
+  phoneNumberId: string | null
+  wabaId: string | null
+  platformMessageId: string
+}
+
 function messageContent(message: Record<string, unknown>): string {
   const type = asString(message.type) ?? 'unknown'
   const textBody = asRecord(message.text)?.body
@@ -107,4 +113,64 @@ export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMess
   }
 
   return inbound
+}
+
+export function parseWhatsAppOutboundReadReceipts(body: unknown): WhatsAppOutboundReadReceipt[] {
+  const payload = asRecord(body)
+  if (payload === null || payload.object !== 'whatsapp_business_account') {
+    return []
+  }
+
+  const entries = Array.isArray(payload.entry) ? payload.entry : []
+  const receipts: WhatsAppOutboundReadReceipt[] = []
+
+  for (const entryValue of entries) {
+    const entry = asRecord(entryValue)
+    if (entry === null) {
+      continue
+    }
+
+    const wabaId = asString(entry.id)
+    const changes = Array.isArray(entry.changes) ? entry.changes : []
+
+    for (const changeValue of changes) {
+      const change = asRecord(changeValue)
+      if (change === null) {
+        continue
+      }
+
+      const value = asRecord(change.value)
+      if (value === null) {
+        continue
+      }
+
+      const metadata = asRecord(value.metadata)
+      const phoneNumberId = asString(metadata?.phone_number_id)
+      const statuses = Array.isArray(value.statuses) ? value.statuses : []
+
+      for (const statusValue of statuses) {
+        const status = asRecord(statusValue)
+        if (status === null) {
+          continue
+        }
+
+        if (asString(status.status) !== 'read') {
+          continue
+        }
+
+        const platformMessageId = asString(status.id)
+        if (platformMessageId === null) {
+          continue
+        }
+
+        receipts.push({
+          phoneNumberId,
+          wabaId,
+          platformMessageId,
+        })
+      }
+    }
+  }
+
+  return receipts
 }

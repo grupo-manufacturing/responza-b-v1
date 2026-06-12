@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { SUPPORTED_PLATFORMS } from '../integrations/integrations.constants.js'
 
 export const MESSAGE_DIRECTION_VALUES = ['inbound', 'outbound'] as const
-export const MESSAGE_STATUS_VALUES = ['pending', 'sent', 'failed'] as const
+export const MESSAGE_STATUS_VALUES = ['pending', 'sent', 'failed', 'read'] as const
 
 export type MessageDirection = (typeof MESSAGE_DIRECTION_VALUES)[number]
 export type MessageStatus = (typeof MESSAGE_STATUS_VALUES)[number]
@@ -20,6 +20,7 @@ const STATUS_TO_API: Record<MessageStatus, string> = {
   pending: 'pending',
   sent: 'sent',
   failed: 'failed',
+  read: 'read',
 }
 
 export function messageDirectionToApi(direction: MessageDirection): string {

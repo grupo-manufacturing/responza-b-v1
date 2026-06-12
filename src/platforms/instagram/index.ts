@@ -1,5 +1,8 @@
 export { exchangeInstagramAccessToken, fetchInstagramUserInfo } from './exchangeAccessToken.js'
-export { parseInstagramInboundMessages } from './parseWebhook.js'
+export {
+  parseInstagramInboundMessages,
+  parseInstagramOutboundReadReceipts,
+} from './parseWebhook.js'
 export {
   formatInstagramParticipantDisplayName,
   resolveInstagramParticipantProfile,

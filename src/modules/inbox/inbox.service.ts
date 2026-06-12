@@ -230,6 +230,16 @@ export async function sendMessage(
   }
 }
 
+export async function markOutboundMessageRead(input: {
+  organizationId: string
+  platformMessageId: string
+}) {
+  return inboxRepository.markOutboundMessageReadByPlatformId({
+    organization_id: input.organizationId,
+    platform_message_id: input.platformMessageId,
+  })
+}
+
 export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   let channel = await inboxRepository.findChannelByIntegration({
     organizationId: input.organizationId,
