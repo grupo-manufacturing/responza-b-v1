@@ -4,7 +4,7 @@ import type { MessageDirection, MessageStatus } from '../inbox.schemas.js'
 import type { MessageRecord } from './types.js'
 
 const MESSAGE_COLUMNS =
-  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, status, created_at'
+  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, status, customer_reaction, agent_reaction, created_at'
 
 export async function listMessagesByConversationId(
   organizationId: string,
@@ -191,6 +191,80 @@ export async function insertInboundMessage(
   return normalizeMessageRecord(data)
 }
 
+export async function findMessageById(input: {
+  organization_id: string
+  conversation_id: string
+  message_id: string
+}): Promise<MessageRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('conversation_id', input.conversation_id)
+    .eq('id', input.message_id)
+    .maybeSingle()
+
+  if (error !== null || data === null) {
+    return null
+  }
+
+  return normalizeMessageRecord(data)
+}
+
+export async function updateCustomerReactionByPlatformMessageId(input: {
+  organization_id: string
+  platform_message_id: string
+  emoji: string | null
+}): Promise<MessageRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data: existing, error: findError } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('platform_message_id', input.platform_message_id)
+    .maybeSingle()
+
+  if (findError !== null || existing === null) {
+    return null
+  }
+
+  const { data, error } = await client
+    .from('messages')
+    .update({ customer_reaction: input.emoji })
+    .eq('organization_id', input.organization_id)
+    .eq('id', existing.id as string)
+    .select(MESSAGE_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    return null
+  }
+
+  return normalizeMessageRecord(data)
+}
+
+export async function updateAgentReaction(input: {
+  organization_id: string
+  message_id: string
+  emoji: string | null
+}): Promise<MessageRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .update({ agent_reaction: input.emoji })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.message_id)
+    .select(MESSAGE_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update message reaction')
+  }
+
+  return normalizeMessageRecord(data)
+}
+
 function normalizeMessageRecord(row: Record<string, unknown>): MessageRecord {
   return {
     id: row.id as string,
@@ -201,6 +275,8 @@ function normalizeMessageRecord(row: Record<string, unknown>): MessageRecord {
     platform_message_id: (row.platform_message_id as string | null) ?? null,
     content: row.content as string,
     status: row.status as MessageStatus,
+    customer_reaction: (row.customer_reaction as string | null) ?? null,
+    agent_reaction: (row.agent_reaction as string | null) ?? null,
     created_at: row.created_at as string,
   }
 }

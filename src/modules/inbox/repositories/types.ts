@@ -53,6 +53,8 @@ export type MessageRecord = {
   platform_message_id: string | null
   content: string
   status: MessageStatus
+  customer_reaction: string | null
+  agent_reaction: string | null
   created_at: string
 }
 

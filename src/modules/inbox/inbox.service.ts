@@ -1,4 +1,5 @@
 import { dispatchOutboundMessage } from '../../platforms/dispatchOutboundMessage.js'
+import { dispatchOutboundReaction } from '../../platforms/dispatchOutboundReaction.js'
 import {
   enrichInstagramConversationList,
   enrichInstagramParticipantRecord,
@@ -12,9 +13,11 @@ import {
   type IntegrationPlatform,
 } from '../integrations/integrations.constants.js'
 import {
+  isAllowedReactionEmoji,
   messageDirectionToApi,
   messageStatusToApi,
   type ListInboxQuery,
+  type ReactToMessageBody,
   type SendMessageBody,
 } from './inbox.schemas.js'
 import * as inboxRepository from './inbox.repository.js'
@@ -114,6 +117,8 @@ function toMessageResponse(message: MessageRecord) {
     platformMessageId: message.platform_message_id,
     content: message.content,
     status: messageStatusToApi(message.status),
+    customerReaction: message.customer_reaction,
+    agentReaction: message.agent_reaction,
     createdAt: message.created_at,
   }
 }
@@ -238,6 +243,79 @@ export async function markOutboundMessageRead(input: {
     organization_id: input.organizationId,
     platform_message_id: input.platformMessageId,
   })
+}
+
+export async function applyCustomerReaction(input: {
+  organizationId: string
+  platformMessageId: string
+  emoji: string | null
+}) {
+  if (input.emoji !== null && !isAllowedReactionEmoji(input.emoji)) {
+    return null
+  }
+
+  return inboxRepository.updateCustomerReactionByPlatformMessageId({
+    organization_id: input.organizationId,
+    platform_message_id: input.platformMessageId,
+    emoji: input.emoji,
+  })
+}
+
+export async function reactToMessage(
+  auth: AuthContext,
+  conversationId: string,
+  messageId: string,
+  input: ReactToMessageBody,
+) {
+  const conversation = await inboxRepository.findConversationSendContext(
+    auth.organizationId,
+    conversationId,
+  )
+
+  if (conversation === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
+  }
+
+  const message = await inboxRepository.findMessageById({
+    organization_id: auth.organizationId,
+    conversation_id: conversationId,
+    message_id: messageId,
+  })
+
+  if (message === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Message not found')
+  }
+
+  if (message.direction !== 'inbound') {
+    throw new AppError(400, 'BAD_REQUEST', 'You can only react to customer messages')
+  }
+
+  if (message.platform_message_id === null) {
+    throw new AppError(400, 'BAD_REQUEST', 'Message is not ready for reactions')
+  }
+
+  if (conversation.platform === 'indiamart') {
+    throw new AppError(400, 'BAD_REQUEST', 'Reactions are not supported for this platform')
+  }
+
+  await dispatchOutboundReaction({
+    platform: conversation.platform,
+    organizationId: auth.organizationId,
+    integrationId: conversation.integration_id,
+    recipientExternalId: conversation.external_id,
+    targetPlatformMessageId: message.platform_message_id,
+    emoji: input.emoji,
+  })
+
+  const updated = await inboxRepository.updateAgentReaction({
+    organization_id: auth.organizationId,
+    message_id: messageId,
+    emoji: input.emoji,
+  })
+
+  return {
+    message: toMessageResponse(updated),
+  }
 }
 
 export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
