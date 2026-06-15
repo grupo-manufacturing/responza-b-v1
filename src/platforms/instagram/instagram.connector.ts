@@ -48,10 +48,11 @@ export async function sendInstagramTextMessage(input: {
     })
 
     if (!response.ok) {
+      const errorResponse = response.clone()
       const errorText = await parseGraphApiError(response, 'Instagram API request failed')
 
       try {
-        const errorBody = (await response.clone().json()) as GraphErrorBody
+        const errorBody = (await errorResponse.json()) as GraphErrorBody
         if (errorBody.error?.code === 2 && errorBody.error?.is_transient) {
           throw new Error('TRANSIENT_ERROR')
         }
