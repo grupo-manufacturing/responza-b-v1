@@ -1,12 +1,14 @@
 import {
   parseWhatsAppInboundMessages,
   parseWhatsAppInboundReactions,
+  parseWhatsAppOutboundEchoes,
   parseWhatsAppOutboundReadReceipts,
 } from '../../../platforms/whatsapp/parseWebhook.js'
 import { verifyMetaWebhookSignature } from '../../../platforms/shared/webhookSignature.js'
 import { verifyMetaWebhookChallenge, type WebhookVerifyQuery } from '../../../platforms/shared/webhookChallenge.js'
 import { loadEnv } from '../../../shared/config/index.js'
 import { AppError } from '../../../shared/errors/index.js'
+import { logger } from '../../../shared/logger.js'
 import type { IntegrationCredentials } from '../../integrations/integrations.constants.js'
 import {
   resolveWhatsAppIntegrationByPhoneNumberId,
@@ -16,6 +18,7 @@ import {
   applyCustomerReaction,
   markOutboundMessageRead,
   receiveInboundMessage,
+  receiveOutboundEcho,
 } from '../../inbox/inbox.service.js'
 
 function formatWhatsAppDisplayName(waId: string, contactName: string | null): string {
@@ -70,6 +73,7 @@ export async function processWhatsAppWebhook(input: {
   }
 
   const inboundMessages = parseWhatsAppInboundMessages(input.body)
+  const outboundEchoes = parseWhatsAppOutboundEchoes(input.body)
   const readReceipts = parseWhatsAppOutboundReadReceipts(input.body)
   const inboundReactions = parseWhatsAppInboundReactions(input.body)
 
@@ -89,8 +93,11 @@ export async function processWhatsAppWebhook(input: {
         platformMessageId: reaction.targetPlatformMessageId,
         emoji: reaction.emoji,
       })
-    } catch {
-      continue
+    } catch (error) {
+      logger.warn('WhatsApp inbound reaction webhook failed', {
+        platformMessageId: reaction.targetPlatformMessageId,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -109,8 +116,46 @@ export async function processWhatsAppWebhook(input: {
         organizationId: integration.organizationId,
         platformMessageId: receipt.platformMessageId,
       })
-    } catch {
-      continue
+    } catch (error) {
+      logger.warn('WhatsApp read receipt webhook failed', {
+        platformMessageId: receipt.platformMessageId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  for (const echo of outboundEchoes) {
+    try {
+      const integration = await resolveIntegrationForInbound({
+        phoneNumberId: echo.phoneNumberId,
+        wabaId: echo.wabaId,
+      })
+
+      if (integration === null) {
+        continue
+      }
+
+      await receiveOutboundEcho({
+        organizationId: integration.organizationId,
+        integrationId: integration.integrationId,
+        platform: 'whatsapp',
+        channelDisplayName: echo.channelDisplayName ?? 'WhatsApp',
+        conversationExternalId: echo.to,
+        participant: {
+          platformUserId: echo.to,
+          displayName: formatWhatsAppDisplayName(echo.to, echo.contactDisplayName),
+        },
+        message: {
+          platformMessageId: echo.platformMessageId,
+          content: echo.content,
+        },
+      })
+    } catch (error) {
+      logger.warn('WhatsApp outbound echo webhook failed', {
+        platformMessageId: echo.platformMessageId,
+        recipientId: echo.to,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -140,8 +185,12 @@ export async function processWhatsAppWebhook(input: {
           content: inbound.content,
         },
       })
-    } catch {
-      continue
+    } catch (error) {
+      logger.warn('WhatsApp inbound message webhook failed', {
+        platformMessageId: inbound.platformMessageId,
+        senderId: inbound.from,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 }
