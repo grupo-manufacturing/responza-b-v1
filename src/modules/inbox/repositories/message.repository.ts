@@ -146,6 +146,137 @@ export type InsertInboundMessageInput = {
   content: string
 }
 
+const PENDING_ECHO_MATCH_WINDOW_MS = 60_000
+
+export type InsertOutboundEchoMessageInput = {
+  organization_id: string
+  conversation_id: string
+  platform_message_id: string
+  content: string
+}
+
+export async function findMessageByPlatformMessageId(input: {
+  organization_id: string
+  conversation_id: string
+  platform_message_id: string
+}): Promise<MessageRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('conversation_id', input.conversation_id)
+    .eq('platform_message_id', input.platform_message_id)
+    .maybeSingle()
+
+  if (error !== null || data === null) {
+    return null
+  }
+
+  return normalizeMessageRecord(data)
+}
+
+export async function findRecentPendingOutbound(input: {
+  organization_id: string
+  conversation_id: string
+  content: string
+  withinMs: number
+}): Promise<MessageRecord | null> {
+  const client = getSupabaseAdminClient()
+  const since = new Date(Date.now() - input.withinMs).toISOString()
+
+  const { data, error } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('conversation_id', input.conversation_id)
+    .eq('direction', 'outbound')
+    .eq('status', 'pending')
+    .is('platform_message_id', null)
+    .eq('content', input.content)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error !== null || data === null) {
+    return null
+  }
+
+  return normalizeMessageRecord(data)
+}
+
+export async function insertOutboundEchoMessage(
+  input: InsertOutboundEchoMessageInput,
+): Promise<MessageRecord | null> {
+  const existing = await findMessageByPlatformMessageId({
+    organization_id: input.organization_id,
+    conversation_id: input.conversation_id,
+    platform_message_id: input.platform_message_id,
+  })
+
+  if (existing !== null) {
+    return null
+  }
+
+  const pending = await findRecentPendingOutbound({
+    organization_id: input.organization_id,
+    conversation_id: input.conversation_id,
+    content: input.content,
+    withinMs: PENDING_ECHO_MATCH_WINDOW_MS,
+  })
+
+  if (pending !== null) {
+    return updateMessageDeliveryStatus({
+      organization_id: input.organization_id,
+      message_id: pending.id,
+      status: 'sent',
+      platform_message_id: input.platform_message_id,
+    })
+  }
+
+  const client = getSupabaseAdminClient()
+  const now = new Date().toISOString()
+
+  const { data, error } = await client
+    .from('messages')
+    .insert({
+      organization_id: input.organization_id,
+      conversation_id: input.conversation_id,
+      participant_id: null,
+      direction: 'outbound',
+      platform_message_id: input.platform_message_id,
+      content: input.content,
+      status: 'sent',
+    })
+    .select(MESSAGE_COLUMNS)
+    .maybeSingle()
+
+  if (error !== null) {
+    if (error.code === '23505') {
+      return null
+    }
+
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to receive outbound echo')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  const { error: conversationError } = await client
+    .from('conversations')
+    .update({ last_message_at: now })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.conversation_id)
+
+  if (conversationError !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
+  }
+
+  return normalizeMessageRecord(data)
+}
+
 export async function insertInboundMessage(
   input: InsertInboundMessageInput,
 ): Promise<MessageRecord | null> {

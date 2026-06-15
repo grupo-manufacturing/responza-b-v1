@@ -1,6 +1,7 @@
 import {
   parseInstagramInboundMessages,
   parseInstagramInboundReactions,
+  parseInstagramOutboundEchoes,
   parseInstagramOutboundReadReceipts,
 } from '../../../platforms/instagram/parseWebhook.js'
 import { verifyMetaWebhookSignature } from '../../../platforms/shared/webhookSignature.js'
@@ -8,12 +9,14 @@ import { verifyMetaWebhookChallenge, type WebhookVerifyQuery } from '../../../pl
 import { resolveInstagramParticipantPresentation } from '../../../platforms/instagram/enrichment.js'
 import { loadEnv } from '../../../shared/config/index.js'
 import { AppError } from '../../../shared/errors/index.js'
+import { logger } from '../../../shared/logger.js'
 import type { IntegrationCredentials } from '../../integrations/integrations.constants.js'
 import { resolveInstagramIntegrationByBusinessId } from '../../integrations/credentials.service.js'
 import {
   applyCustomerReaction,
   markOutboundMessageRead,
   receiveInboundMessage,
+  receiveOutboundEcho,
 } from '../../inbox/inbox.service.js'
 
 function formatInstagramDisplayName(igsid: string, contactName: string | null): string {
@@ -55,6 +58,7 @@ export async function processInstagramWebhook(input: {
   }
 
   const inboundMessages = parseInstagramInboundMessages(input.body)
+  const outboundEchoes = parseInstagramOutboundEchoes(input.body)
   const readReceipts = parseInstagramOutboundReadReceipts(input.body)
   const inboundReactions = parseInstagramInboundReactions(input.body)
 
@@ -73,8 +77,11 @@ export async function processInstagramWebhook(input: {
         platformMessageId: reaction.targetPlatformMessageId,
         emoji: reaction.emoji,
       })
-    } catch {
-      continue
+    } catch (error) {
+      logger.warn('Instagram inbound reaction webhook failed', {
+        platformMessageId: reaction.targetPlatformMessageId,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -92,8 +99,53 @@ export async function processInstagramWebhook(input: {
         organizationId: integration.organizationId,
         platformMessageId: receipt.platformMessageId,
       })
-    } catch {
-      continue
+    } catch (error) {
+      logger.warn('Instagram read receipt webhook failed', {
+        platformMessageId: receipt.platformMessageId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  for (const echo of outboundEchoes) {
+    try {
+      const integration = await resolveIntegrationForInbound({
+        businessAccountId: echo.businessAccountId,
+      })
+
+      if (integration === null) {
+        continue
+      }
+
+      const fallbackDisplayName = formatInstagramDisplayName(echo.to, null)
+      const presentation = await resolveInstagramParticipantPresentation({
+        platformUserId: echo.to,
+        accessToken: integration.accessToken,
+        fallbackDisplayName,
+      })
+
+      await receiveOutboundEcho({
+        organizationId: integration.organizationId,
+        integrationId: integration.integrationId,
+        platform: 'instagram',
+        channelDisplayName: 'Instagram',
+        conversationExternalId: echo.to,
+        participant: {
+          platformUserId: echo.to,
+          displayName: presentation.displayName,
+          avatarUrl: presentation.avatarUrl,
+        },
+        message: {
+          platformMessageId: echo.platformMessageId,
+          content: echo.content,
+        },
+      })
+    } catch (error) {
+      logger.warn('Instagram outbound echo webhook failed', {
+        platformMessageId: echo.platformMessageId,
+        recipientId: echo.to,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -133,8 +185,12 @@ export async function processInstagramWebhook(input: {
           content: inbound.content,
         },
       })
-    } catch {
-      continue
+    } catch (error) {
+      logger.warn('Instagram inbound message webhook failed', {
+        platformMessageId: inbound.platformMessageId,
+        senderId: inbound.from,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 }

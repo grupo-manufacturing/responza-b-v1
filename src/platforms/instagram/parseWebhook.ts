@@ -19,6 +19,13 @@ export type InstagramInboundReaction = {
   emoji: string | null
 }
 
+export type InstagramOutboundEcho = {
+  businessAccountId: string | null
+  to: string
+  platformMessageId: string
+  content: string
+}
+
 function messageContent(message: Record<string, unknown>): string {
   const text = asString(message.text)
   if (text !== null) {
@@ -91,6 +98,65 @@ export function parseInstagramInboundMessages(body: unknown): InstagramInboundMe
   }
 
   return inbound
+}
+
+export function parseInstagramOutboundEchoes(body: unknown): InstagramOutboundEcho[] {
+  const payload = asRecord(body)
+  if (payload === null || payload.object !== 'instagram') {
+    return []
+  }
+
+  const entries = Array.isArray(payload.entry) ? payload.entry : []
+  const echoes: InstagramOutboundEcho[] = []
+
+  for (const entryValue of entries) {
+    const entry = asRecord(entryValue)
+    if (entry === null) {
+      continue
+    }
+
+    const businessAccountId = asString(entry.id)
+    const messaging = Array.isArray(entry.messaging) ? entry.messaging : []
+
+    for (const messageValue of messaging) {
+      const messageEvent = asRecord(messageValue)
+      if (messageEvent === null) {
+        continue
+      }
+
+      if (messageEvent.read !== undefined || messageEvent.reaction !== undefined) {
+        continue
+      }
+
+      const sender = asRecord(messageEvent.sender)
+      const from = asString(sender?.id)
+      const recipient = asRecord(messageEvent.recipient)
+      const to = asString(recipient?.id)
+      const message = asRecord(messageEvent.message)
+
+      if (from === null || to === null || message === null || businessAccountId === null) {
+        continue
+      }
+
+      if (from !== businessAccountId || to === businessAccountId) {
+        continue
+      }
+
+      const platformMessageId = asString(message.id) ?? asString(message.mid)
+      if (platformMessageId === null) {
+        continue
+      }
+
+      echoes.push({
+        businessAccountId,
+        to,
+        platformMessageId,
+        content: messageContent(message),
+      })
+    }
+  }
+
+  return echoes
 }
 
 export function parseInstagramOutboundReadReceipts(body: unknown): InstagramOutboundReadReceipt[] {

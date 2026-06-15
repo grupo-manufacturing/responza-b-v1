@@ -45,6 +45,98 @@ export type ReceiveInboundMessageInput = {
   }
 }
 
+export type ReceiveOutboundEchoInput = {
+  organizationId: string
+  integrationId: string
+  platform: IntegrationPlatform
+  channelDisplayName: string
+  conversationExternalId: string
+  participant: {
+    platformUserId: string
+    displayName: string
+    avatarUrl?: string | null
+  }
+  message: {
+    platformMessageId: string
+    content: string
+  }
+}
+
+type EnsureConversationInput = {
+  organizationId: string
+  integrationId: string
+  platform: IntegrationPlatform
+  channelDisplayName: string
+  conversationExternalId: string
+  participant: {
+    platformUserId: string
+    displayName: string
+    avatarUrl?: string | null
+  }
+}
+
+async function ensureConversationContext(input: EnsureConversationInput): Promise<{
+  conversation: ConversationRecord
+  participant: ParticipantRecord
+}> {
+  let channel = await inboxRepository.findChannelByIntegration({
+    organizationId: input.organizationId,
+    integrationId: input.integrationId,
+  })
+
+  if (channel === null) {
+    channel = await inboxRepository.insertChannel({
+      organization_id: input.organizationId,
+      integration_id: input.integrationId,
+      platform: input.platform,
+      display_name: input.channelDisplayName,
+    })
+  }
+
+  let conversation = await inboxRepository.findConversationByExternalId({
+    organizationId: input.organizationId,
+    channelId: channel.id,
+    externalId: input.conversationExternalId,
+  })
+
+  if (conversation === null) {
+    conversation = await inboxRepository.insertConversation({
+      organization_id: input.organizationId,
+      channel_id: channel.id,
+      external_id: input.conversationExternalId,
+    })
+  }
+
+  let participant = await inboxRepository.findParticipant({
+    organizationId: input.organizationId,
+    conversationId: conversation.id,
+    platformUserId: input.participant.platformUserId,
+  })
+
+  if (participant === null) {
+    participant = await inboxRepository.insertParticipant({
+      organization_id: input.organizationId,
+      conversation_id: conversation.id,
+      platform_user_id: input.participant.platformUserId,
+      display_name: input.participant.displayName,
+      avatar_url: input.participant.avatarUrl ?? null,
+    })
+  }
+
+  if (input.platform === 'instagram') {
+    const credentials = await getInstagramCredentialsForOrganization(input.organizationId)
+    if (credentials !== null) {
+      participant = await enrichInstagramParticipantRecord({
+        organizationId: input.organizationId,
+        participant,
+        accessToken: credentials.accessToken,
+      })
+    }
+  }
+
+  return { conversation, participant }
+}
+
 export async function syncChannel(
   organizationId: string,
   integrationId: string,
@@ -319,60 +411,7 @@ export async function reactToMessage(
 }
 
 export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
-  let channel = await inboxRepository.findChannelByIntegration({
-    organizationId: input.organizationId,
-    integrationId: input.integrationId,
-  })
-
-  if (channel === null) {
-    channel = await inboxRepository.insertChannel({
-      organization_id: input.organizationId,
-      integration_id: input.integrationId,
-      platform: input.platform,
-      display_name: input.channelDisplayName,
-    })
-  }
-
-  let conversation = await inboxRepository.findConversationByExternalId({
-    organizationId: input.organizationId,
-    channelId: channel.id,
-    externalId: input.conversationExternalId,
-  })
-
-  if (conversation === null) {
-    conversation = await inboxRepository.insertConversation({
-      organization_id: input.organizationId,
-      channel_id: channel.id,
-      external_id: input.conversationExternalId,
-    })
-  }
-
-  let participant = await inboxRepository.findParticipant({
-    organizationId: input.organizationId,
-    conversationId: conversation.id,
-    platformUserId: input.participant.platformUserId,
-  })
-
-  if (participant === null) {
-    participant = await inboxRepository.insertParticipant({
-      organization_id: input.organizationId,
-      conversation_id: conversation.id,
-      platform_user_id: input.participant.platformUserId,
-      display_name: input.participant.displayName,
-      avatar_url: input.participant.avatarUrl ?? null,
-    })
-  }
-
-  if (input.platform === 'instagram') {
-    const credentials = await getInstagramCredentialsForOrganization(input.organizationId)
-    if (credentials !== null) {
-      participant = await enrichInstagramParticipantRecord({
-        organizationId: input.organizationId,
-        participant,
-        accessToken: credentials.accessToken,
-      })
-    }
-  }
+  const { conversation, participant } = await ensureConversationContext(input)
 
   const message = await inboxRepository.insertInboundMessage({
     organization_id: input.organizationId,
@@ -400,6 +439,43 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       conversation: toConversationResponse(conversation),
       participant: toParticipantResponse(participant),
       message: toMessageResponse(duplicate),
+      duplicate: true,
+    }
+  }
+
+  return {
+    conversation: toConversationResponse(conversation),
+    participant: toParticipantResponse(participant),
+    message: toMessageResponse(message),
+    duplicate: false,
+  }
+}
+
+export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
+  const { conversation, participant } = await ensureConversationContext(input)
+
+  const message = await inboxRepository.insertOutboundEchoMessage({
+    organization_id: input.organizationId,
+    conversation_id: conversation.id,
+    platform_message_id: input.message.platformMessageId,
+    content: input.message.content,
+  })
+
+  if (message === null) {
+    const existing = await inboxRepository.findMessageByPlatformMessageId({
+      organization_id: input.organizationId,
+      conversation_id: conversation.id,
+      platform_message_id: input.message.platformMessageId,
+    })
+
+    if (existing === null) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Failed to receive outbound echo')
+    }
+
+    return {
+      conversation: toConversationResponse(conversation),
+      participant: toParticipantResponse(participant),
+      message: toMessageResponse(existing),
       duplicate: true,
     }
   }
