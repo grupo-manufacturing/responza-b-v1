@@ -56,11 +56,23 @@ export function normalizeIntegrationCredentialsRow(
     }
 
     const businessId = metadata['business_id']
+    const verifiedName = metadata.verified_name
+    const displayPhoneNumber = metadata.display_phone_number
+    const profilePictureUrl = metadata.profile_picture_url
     normalizedMetadata = {
       phone_number_id: phoneNumberId,
       waba_id: wabaId,
       ...(typeof businessId === 'string' && businessId.length > 0
         ? { business_id: businessId }
+        : {}),
+      ...(typeof verifiedName === 'string' && verifiedName.length > 0
+        ? { verified_name: verifiedName }
+        : {}),
+      ...(typeof displayPhoneNumber === 'string' && displayPhoneNumber.length > 0
+        ? { display_phone_number: displayPhoneNumber }
+        : {}),
+      ...(typeof profilePictureUrl === 'string' && profilePictureUrl.length > 0
+        ? { profile_picture_url: profilePictureUrl }
         : {}),
     }
   } else if (platform === 'instagram') {

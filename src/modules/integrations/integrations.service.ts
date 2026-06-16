@@ -1,4 +1,4 @@
-import { exchangeWhatsAppAccessToken } from '../../platforms/whatsapp/exchangeAccessToken.js'
+import { exchangeWhatsAppAccessToken, fetchWhatsAppBusinessProfile } from '../../platforms/whatsapp/index.js'
 import { exchangeInstagramAccessToken, fetchInstagramUserInfo } from '../../platforms/instagram/exchangeAccessToken.js'
 import { backfillInstagramParticipantProfiles } from '../../platforms/instagram/enrichment.js'
 import type { AuthContext } from '../../shared/auth/index.js'
@@ -40,9 +40,8 @@ function toDisconnectedResponse(platform: IntegrationPlatform) {
 
 function toWhatsAppSummary(metadata: WhatsAppIntegrationMetadata) {
   return {
-    phone_number_id: metadata.phone_number_id,
-    waba_id: metadata.waba_id,
-    business_id: metadata.business_id ?? null,
+    display_name: metadata.verified_name ?? metadata.display_phone_number ?? null,
+    profile_picture_url: metadata.profile_picture_url ?? null,
   }
 }
 
@@ -167,6 +166,31 @@ export async function disconnectIntegration(auth: AuthContext, platformParam: st
   }
 }
 
+async function enrichWhatsAppMetadata(
+  metadata: WhatsAppIntegrationMetadata,
+  accessToken: string,
+): Promise<WhatsAppIntegrationMetadata> {
+  try {
+    const profile = await fetchWhatsAppBusinessProfile({
+      phoneNumberId: metadata.phone_number_id,
+      accessToken,
+    })
+
+    return whatsAppIntegrationMetadataSchema.parse({
+      ...metadata,
+      ...(profile.verified_name !== null ? { verified_name: profile.verified_name } : {}),
+      ...(profile.display_phone_number !== null
+        ? { display_phone_number: profile.display_phone_number }
+        : {}),
+      ...(profile.profile_picture_url !== null
+        ? { profile_picture_url: profile.profile_picture_url }
+        : {}),
+    })
+  } catch {
+    return metadata
+  }
+}
+
 async function storeWhatsAppCredentials(
   organizationId: string,
   input: {
@@ -181,14 +205,16 @@ async function storeWhatsAppCredentials(
     throw new AppError(400, 'VALIDATION_ERROR', 'access_token is required')
   }
 
+  const enrichedMetadata = await enrichWhatsAppMetadata(metadata, accessToken)
+
   const integration = await integrationsRepository.upsertWhatsAppCredentials(organizationId, {
     accessToken,
-    metadata,
+    metadata: enrichedMetadata,
   })
 
   return {
     integration: toIntegrationResponse(integration),
-    whatsapp: toWhatsAppSummary(metadata),
+    whatsapp: toWhatsAppSummary(enrichedMetadata),
   }
 }
 
@@ -226,9 +252,30 @@ export async function getWhatsAppConnectionSummary(auth: AuthContext) {
     }
   }
 
+  const baseMetadata = credentials.metadata as WhatsAppIntegrationMetadata
+  let metadata = baseMetadata
+
+  try {
+    const profile = await fetchWhatsAppBusinessProfile({
+      phoneNumberId: baseMetadata.phone_number_id,
+      accessToken: credentials.accessToken,
+    })
+    metadata = {
+      ...baseMetadata,
+      ...(profile.verified_name !== null ? { verified_name: profile.verified_name } : {}),
+      ...(profile.display_phone_number !== null
+        ? { display_phone_number: profile.display_phone_number }
+        : {}),
+      ...(profile.profile_picture_url !== null
+        ? { profile_picture_url: profile.profile_picture_url }
+        : {}),
+    }
+  } catch {
+  }
+
   return {
     connected: true,
-    whatsapp: toWhatsAppSummary(credentials.metadata as WhatsAppIntegrationMetadata),
+    whatsapp: toWhatsAppSummary(metadata),
   }
 }
 

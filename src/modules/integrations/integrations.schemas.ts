@@ -33,6 +33,9 @@ export const whatsAppIntegrationMetadataSchema = z.object({
   phone_number_id: z.string().trim().min(1),
   waba_id: z.string().trim().min(1),
   business_id: z.string().trim().min(1).optional(),
+  verified_name: z.string().trim().min(1).optional(),
+  display_phone_number: z.string().trim().min(1).optional(),
+  profile_picture_url: z.string().trim().url().optional(),
 })
 
 export const instagramIntegrationMetadataSchema = z.object({

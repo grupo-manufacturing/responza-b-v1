@@ -9,6 +9,9 @@ export type WhatsAppIntegrationMetadata = {
   phone_number_id: string
   waba_id: string
   business_id?: string
+  verified_name?: string
+  display_phone_number?: string
+  profile_picture_url?: string
 }
 
 export type InstagramIntegrationMetadata = {
