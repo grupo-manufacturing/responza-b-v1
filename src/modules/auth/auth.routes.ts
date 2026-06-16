@@ -3,7 +3,7 @@ import { Router } from 'express'
 import { validateRequest } from '../../shared/middleware/index.js'
 import type { AuthSessionPayload } from '../../shared/auth/index.js'
 import * as authService from './auth.service.js'
-import { loginBodySchema, registerBodySchema } from './auth.service.js'
+import { loginBodySchema, registerBodySchema, updateProfileBodySchema, changePasswordBodySchema } from './auth.service.js'
 
 function toSessionResponse(payload: AuthSessionPayload) {
   return {
@@ -63,6 +63,28 @@ export function createAuthProtectedRouter(): Router {
       })
       .catch(next)
   })
+
+  router.patch('/me', validateRequest({ body: updateProfileBodySchema }), (req, res, next) => {
+    void authService
+      .updateProfile(req.auth!, req.body)
+      .then((payload) => {
+        res.status(200).json(toMeResponse(payload))
+      })
+      .catch(next)
+  })
+
+  router.post(
+    '/change-password',
+    validateRequest({ body: changePasswordBodySchema }),
+    (req, res, next) => {
+      void authService
+        .changePassword(req.auth!, req.body)
+        .then(() => {
+          res.status(200).json({ success: true })
+        })
+        .catch(next)
+    },
+  )
 
   return router
 }

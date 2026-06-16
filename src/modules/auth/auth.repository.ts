@@ -97,6 +97,28 @@ export async function createOrganization(input: {
   return data as OrganizationRecord
 }
 
+export async function updateOrganizationName(
+  organizationId: string,
+  name: string,
+): Promise<OrganizationRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('organizations')
+    .update({
+      name,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', organizationId)
+    .select(ORGANIZATION_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update organization name')
+  }
+
+  return data as OrganizationRecord
+}
+
 export async function createBusinessProfile(organizationId: string): Promise<void> {
   const client = getSupabaseAdminClient()
   const { error } = await client.from('organization_business_profiles').insert({

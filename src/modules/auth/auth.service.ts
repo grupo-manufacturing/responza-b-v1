@@ -20,8 +20,19 @@ export const loginBodySchema = z.object({
   password: z.string().min(1).max(128),
 })
 
+export const updateProfileBodySchema = z.object({
+  name: z.string().trim().min(1).max(160),
+})
+
+export const changePasswordBodySchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(8).max(128),
+})
+
 export type RegisterBody = z.infer<typeof registerBodySchema>
 export type LoginBody = z.infer<typeof loginBodySchema>
+export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>
+export type ChangePasswordBody = z.infer<typeof changePasswordBodySchema>
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
 
 function toAuthContext(organization: Pick<OrganizationRecord, 'id' | 'email' | 'name'>): AuthContext {
@@ -167,6 +178,10 @@ export async function getCurrentOrganization(auth: AuthContext): Promise<AuthSes
     throw new AppError(500, 'INTERNAL_ERROR', 'Organization account not found')
   }
 
+  return buildProfilePayload(organization)
+}
+
+async function buildProfilePayload(organization: OrganizationRecord): Promise<AuthSessionPayload> {
   const subscription = await getSubscriptionForOrganization(organization.id)
   const businessDetails = await authRepository.findBusinessDetailsStatus(organization.id)
 
@@ -181,5 +196,54 @@ export async function getCurrentOrganization(auth: AuthContext): Promise<AuthSes
         businessDetails?.completed_at !== null && businessDetails?.completed_at !== undefined,
       completedAt: businessDetails?.completed_at ?? null,
     },
+  }
+}
+
+export async function updateProfile(
+  auth: AuthContext,
+  input: UpdateProfileBody,
+): Promise<AuthSessionPayload> {
+  const organization = await authRepository.updateOrganizationName(auth.organizationId, input.name)
+
+  const admin = getSupabaseAdminClient()
+  const { error } = await admin.auth.admin.updateUserById(auth.organizationId, {
+    user_metadata: {
+      organization_name: input.name,
+    },
+  })
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to sync account profile')
+  }
+
+  return buildProfilePayload(organization)
+}
+
+export async function changePassword(
+  auth: AuthContext,
+  input: ChangePasswordBody,
+): Promise<void> {
+  const organization = await authRepository.findOrganizationById(auth.organizationId)
+  if (organization === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Organization account not found')
+  }
+
+  const authClient = getSupabaseAuthClient()
+  const { error: signInError } = await authClient.auth.signInWithPassword({
+    email: organization.email,
+    password: input.currentPassword,
+  })
+
+  if (signInError !== null) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Current password is incorrect')
+  }
+
+  const admin = getSupabaseAdminClient()
+  const { error: updateError } = await admin.auth.admin.updateUserById(auth.organizationId, {
+    password: input.newPassword,
+  })
+
+  if (updateError !== null) {
+    throw new AppError(400, 'BAD_REQUEST', updateError.message)
   }
 }
