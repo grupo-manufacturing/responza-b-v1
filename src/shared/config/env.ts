@@ -20,6 +20,13 @@ const envSchema = z.object({
   INSTAGRAM_APP_ID: z.string().default(''),
   INSTAGRAM_APP_SECRET: z.string().default(''),
   INSTAGRAM_REDIRECT_URI: z.string().default(''),
+  AI_ENABLED: z
+    .string()
+    .default('false')
+    .transform((value) => value === 'true' || value === '1'),
+  OPENAI_API_KEY: z.string().default(''),
+  OPENAI_MODEL: z.string().trim().min(1).default('gpt-4o-mini'),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 })
 
 export type Env = z.infer<typeof envSchema>
