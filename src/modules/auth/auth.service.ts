@@ -7,7 +7,9 @@ import {
 import { getSupabaseAdminClient, getSupabaseAuthClient } from '../../shared/database/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { getSubscriptionForOrganization } from '../subscription/subscription.service.js'
+import { TRANSLATION_LANGUAGES } from '../ai/translation.constants.js'
 import * as authRepository from './auth.repository.js'
+import { translationLanguageSchema } from '../ai/ai.schemas.js'
 
 export const registerBodySchema = z.object({
   email: z.string().email(),
@@ -20,9 +22,15 @@ export const loginBodySchema = z.object({
   password: z.string().min(1).max(128),
 })
 
-export const updateProfileBodySchema = z.object({
-  name: z.string().trim().min(1).max(160),
-})
+export const updateProfileBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(160).optional(),
+    preferredTranslationLanguage: translationLanguageSchema.nullable().optional(),
+  })
+  .refine(
+    (body) => body.name !== undefined || body.preferredTranslationLanguage !== undefined,
+    { message: 'At least one field is required' },
+  )
 
 export const changePasswordBodySchema = z.object({
   currentPassword: z.string().min(1).max(128),
@@ -49,6 +57,7 @@ function toOrganizationSummary(organization: OrganizationRecord) {
     email: organization.email,
     name: organization.name,
     plan: organization.plan,
+    preferredTranslationLanguage: organization.preferred_translation_language ?? null,
   }
 }
 
@@ -203,20 +212,36 @@ export async function updateProfile(
   auth: AuthContext,
   input: UpdateProfileBody,
 ): Promise<AuthSessionPayload> {
-  const organization = await authRepository.updateOrganizationName(auth.organizationId, input.name)
+  const patch: authRepository.OrganizationProfilePatch = {}
 
-  const admin = getSupabaseAdminClient()
-  const { error } = await admin.auth.admin.updateUserById(auth.organizationId, {
-    user_metadata: {
-      organization_name: input.name,
-    },
-  })
+  if (input.name !== undefined) {
+    patch.name = input.name
+  }
 
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to sync account profile')
+  if (input.preferredTranslationLanguage !== undefined) {
+    patch.preferred_translation_language = input.preferredTranslationLanguage
+  }
+
+  const organization = await authRepository.updateOrganizationProfile(auth.organizationId, patch)
+
+  if (input.name !== undefined) {
+    const admin = getSupabaseAdminClient()
+    const { error } = await admin.auth.admin.updateUserById(auth.organizationId, {
+      user_metadata: {
+        organization_name: input.name,
+      },
+    })
+
+    if (error !== null) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Failed to sync account profile')
+    }
   }
 
   return buildProfilePayload(organization)
+}
+
+export function listTranslationLanguages() {
+  return { languages: TRANSLATION_LANGUAGES }
 }
 
 export async function changePassword(

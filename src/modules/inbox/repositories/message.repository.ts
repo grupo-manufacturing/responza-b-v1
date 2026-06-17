@@ -343,6 +343,29 @@ export async function findMessageById(input: {
   return normalizeMessageRecord(data)
 }
 
+export async function findMessageByIdForOrganization(input: {
+  organization_id: string
+  message_id: string
+}): Promise<MessageRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.message_id)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load message')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeMessageRecord(data)
+}
+
 export async function updateCustomerReactionByPlatformMessageId(input: {
   organization_id: string
   platform_message_id: string

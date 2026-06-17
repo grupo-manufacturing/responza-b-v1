@@ -13,6 +13,7 @@ export type AuthSessionPayload = {
     readonly email: string
     readonly name: string
     readonly plan: string
+    readonly preferredTranslationLanguage: string | null
   }
   readonly subscription: {
     readonly plan: string

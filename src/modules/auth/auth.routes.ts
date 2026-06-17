@@ -55,6 +55,10 @@ export function createAuthPublicRouter(): Router {
 export function createAuthProtectedRouter(): Router {
   const router = Router()
 
+  router.get('/translation-languages', (_req, res) => {
+    res.status(200).json(authService.listTranslationLanguages())
+  })
+
   router.get('/me', (req, res, next) => {
     void authService
       .getCurrentOrganization(req.auth!)
