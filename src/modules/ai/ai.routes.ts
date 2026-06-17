@@ -9,7 +9,7 @@ export function createAiRouter(): Router {
 
   router.post('/rewrite', validateRequest({ body: rewriteBodySchema }), (req, res, next) => {
     void aiService
-      .rewriteDraft(req.auth!, req.body)
+      .rewriteDraft(req.body)
       .then((result) => {
         res.status(200).json(result)
       })
