@@ -1,5 +1,4 @@
-import type { TranslationLanguage } from '../translation.constants.js'
-import { translationLanguageLabel } from '../translation.constants.js'
+import { translationLanguageLabel, type TranslationLanguage } from '../ai.constants.js'
 
 export function buildTranslateSystemPrompt(targetLanguage: TranslationLanguage): string {
   const label = translationLanguageLabel(targetLanguage)

@@ -7,7 +7,7 @@ import {
 import { getSupabaseAdminClient, getSupabaseAuthClient } from '../../shared/database/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { getSubscriptionForOrganization } from '../subscription/subscription.service.js'
-import { TRANSLATION_LANGUAGES } from '../ai/translation.constants.js'
+import { TRANSLATION_LANGUAGES } from '../ai/ai.constants.js'
 import * as authRepository from './auth.repository.js'
 import { translationLanguageSchema } from '../ai/ai.schemas.js'
 

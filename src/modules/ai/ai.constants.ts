@@ -1,4 +1,7 @@
-import { z } from 'zod'
+export const SUGGEST_REPLY_MESSAGE_LIMIT = 10
+export const SUGGEST_REPLY_MIN_COUNT = 2
+export const SUGGEST_REPLY_MAX_COUNT = 3
+export const SUGGEST_REPLY_MAX_LENGTH = 1000
 
 export const TRANSLATION_LANGUAGE_VALUES = [
   'hindi',
@@ -14,8 +17,6 @@ export const TRANSLATION_LANGUAGE_VALUES = [
 ] as const
 
 export type TranslationLanguage = (typeof TRANSLATION_LANGUAGE_VALUES)[number]
-
-export const translationLanguageSchema = z.enum(TRANSLATION_LANGUAGE_VALUES)
 
 export const TRANSLATION_LANGUAGES: ReadonlyArray<{
   code: TranslationLanguage

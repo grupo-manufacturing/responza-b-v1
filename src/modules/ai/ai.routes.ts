@@ -2,7 +2,7 @@ import { Router } from 'express'
 
 import { validateRequest } from '../../shared/middleware/index.js'
 import * as aiService from './ai.service.js'
-import { rewriteBodySchema, translateBodySchema } from './ai.schemas.js'
+import { rewriteBodySchema, suggestReplyBodySchema, translateBodySchema } from './ai.schemas.js'
 
 export function createAiRouter(): Router {
   const router = Router()
@@ -24,6 +24,19 @@ export function createAiRouter(): Router {
       })
       .catch(next)
   })
+
+  router.post(
+    '/suggest-reply',
+    validateRequest({ body: suggestReplyBodySchema }),
+    (req, res, next) => {
+      void aiService
+        .suggestReply(req.auth!, req.body)
+        .then((result) => {
+          res.status(200).json(result)
+        })
+        .catch(next)
+    },
+  )
 
   return router
 }

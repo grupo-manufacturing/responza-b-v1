@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
-import { translationLanguageSchema } from './translation.constants.js'
+import {
+  SUGGEST_REPLY_MAX_COUNT,
+  SUGGEST_REPLY_MAX_LENGTH,
+  SUGGEST_REPLY_MIN_COUNT,
+  TRANSLATION_LANGUAGE_VALUES,
+} from './ai.constants.js'
+
+export const translationLanguageSchema = z.enum(TRANSLATION_LANGUAGE_VALUES)
 
 export const rewriteBodySchema = z.object({
   draft: z.string().trim().min(1).max(2000),
@@ -10,7 +17,33 @@ export const translateBodySchema = z.object({
   messageId: z.string().uuid(),
 })
 
+export const suggestReplyBodySchema = z.object({
+  conversationId: z.string().uuid(),
+})
+
+export const suggestReplyResponseSchema = z.object({
+  suggestions: z
+    .array(z.string().trim().min(1).max(SUGGEST_REPLY_MAX_LENGTH))
+    .min(SUGGEST_REPLY_MIN_COUNT)
+    .max(SUGGEST_REPLY_MAX_COUNT),
+})
+
 export type RewriteBody = z.infer<typeof rewriteBodySchema>
 export type TranslateBody = z.infer<typeof translateBodySchema>
+export type SuggestReplyBody = z.infer<typeof suggestReplyBodySchema>
 
-export { translationLanguageSchema }
+export function normalizeSuggestReplyResponse(raw: string): { suggestions: string[] } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('Invalid JSON response')
+  }
+
+  const result = suggestReplyResponseSchema.safeParse(parsed)
+  if (!result.success) {
+    throw new Error('Invalid suggestions shape')
+  }
+
+  return result.data
+}

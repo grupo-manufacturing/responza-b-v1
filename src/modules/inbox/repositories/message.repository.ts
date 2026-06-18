@@ -25,6 +25,27 @@ export async function listMessagesByConversationId(
   return (data ?? []).map(normalizeMessageRecord)
 }
 
+export async function listRecentMessagesForConversation(input: {
+  organization_id: string
+  conversation_id: string
+  limit: number
+}): Promise<MessageRecord[]> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('organization_id', input.organization_id)
+    .eq('conversation_id', input.conversation_id)
+    .order('created_at', { ascending: false })
+    .limit(input.limit)
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load recent messages')
+  }
+
+  return (data ?? []).map(normalizeMessageRecord).reverse()
+}
+
 export type InsertOutboundMessageInput = {
   organization_id: string
   conversation_id: string
