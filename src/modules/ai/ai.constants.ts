@@ -4,6 +4,8 @@ export const SUGGEST_REPLY_MAX_COUNT = 3
 export const SUGGEST_REPLY_MAX_LENGTH = 1000
 
 export const TRANSLATION_LANGUAGE_VALUES = [
+  'arabic',
+  'spanish',
   'hindi',
   'bengali',
   'telugu',
@@ -22,6 +24,8 @@ export const TRANSLATION_LANGUAGES: ReadonlyArray<{
   code: TranslationLanguage
   label: string
 }> = [
+  { code: 'arabic', label: 'Arabic' },
+  { code: 'spanish', label: 'Spanish' },
   { code: 'hindi', label: 'Hindi' },
   { code: 'bengali', label: 'Bengali' },
   { code: 'telugu', label: 'Telugu' },
@@ -35,6 +39,8 @@ export const TRANSLATION_LANGUAGES: ReadonlyArray<{
 ]
 
 const TRANSLATION_LANGUAGE_LABELS: Record<TranslationLanguage, string> = {
+  arabic: 'Arabic',
+  spanish: 'Spanish',
   hindi: 'Hindi',
   bengali: 'Bengali',
   telugu: 'Telugu',
