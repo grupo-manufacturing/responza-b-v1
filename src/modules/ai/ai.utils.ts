@@ -1,3 +1,4 @@
+import { ANALYTICS_MAX_MESSAGES } from './ai.constants.js'
 import type { MessageRecord } from '../inbox/repositories/types.js'
 
 export function isTranslatableMessageContent(content: string): boolean {
@@ -48,4 +49,26 @@ export function buildSuggestReplyTranscript(messages: MessageRecord[]): string {
 export function isLatestMessageOutbound(messages: MessageRecord[]): boolean {
   const latest = messages[messages.length - 1]
   return latest?.direction === 'outbound'
+}
+
+function formatAnalyticsMessageLine(message: MessageRecord): string {
+  const speaker = message.direction === 'inbound' ? 'Customer' : 'You'
+  const timestamp = message.created_at.slice(0, 16).replace('T', ' ')
+  return `[${timestamp}] ${speaker}: ${formatMessageContentForAi(message.content)}`
+}
+
+export function buildAnalyticsTranscript(messages: MessageRecord[]): {
+  transcript: string
+  omittedOlderMessageCount: number
+} {
+  const omittedOlderMessageCount =
+    messages.length > ANALYTICS_MAX_MESSAGES ? messages.length - ANALYTICS_MAX_MESSAGES : 0
+
+  const visibleMessages =
+    omittedOlderMessageCount > 0 ? messages.slice(omittedOlderMessageCount) : messages
+
+  return {
+    transcript: visibleMessages.map(formatAnalyticsMessageLine).join('\n'),
+    omittedOlderMessageCount,
+  }
 }

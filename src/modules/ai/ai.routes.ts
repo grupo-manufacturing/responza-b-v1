@@ -2,7 +2,12 @@ import { Router } from 'express'
 
 import { validateRequest } from '../../shared/middleware/index.js'
 import * as aiService from './ai.service.js'
-import { rewriteBodySchema, suggestReplyBodySchema, translateBodySchema } from './ai.schemas.js'
+import {
+  conversationAnalyticsBodySchema,
+  rewriteBodySchema,
+  suggestReplyBodySchema,
+  translateBodySchema,
+} from './ai.schemas.js'
 
 export function createAiRouter(): Router {
   const router = Router()
@@ -31,6 +36,19 @@ export function createAiRouter(): Router {
     (req, res, next) => {
       void aiService
         .suggestReply(req.auth!, req.body)
+        .then((result) => {
+          res.status(200).json(result)
+        })
+        .catch(next)
+    },
+  )
+
+  router.post(
+    '/conversation-analytics',
+    validateRequest({ body: conversationAnalyticsBodySchema }),
+    (req, res, next) => {
+      void aiService
+        .analyzeConversation(req.auth!, req.body)
         .then((result) => {
           res.status(200).json(result)
         })

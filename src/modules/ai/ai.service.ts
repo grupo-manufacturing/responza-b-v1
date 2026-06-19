@@ -2,20 +2,31 @@ import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { findProfileByOrganizationId } from '../business/business.repository.js'
 import { findConversationSendContext } from '../inbox/repositories/conversation.repository.js'
-import { listRecentMessagesForConversation } from '../inbox/repositories/message.repository.js'
-import { SUGGEST_REPLY_MESSAGE_LIMIT } from './ai.constants.js'
 import {
+  findMessageByIdForOrganization,
+  listMessagesByConversationId,
+  listRecentMessagesForConversation,
+} from '../inbox/repositories/message.repository.js'
+import { ANALYTICS_MIN_MESSAGES, SUGGEST_REPLY_MESSAGE_LIMIT } from './ai.constants.js'
+import {
+  normalizeConversationAnalyticsResponse,
   normalizeSuggestReplyResponse,
   translationLanguageSchema,
+  type ConversationAnalyticsBody,
   type RewriteBody,
   type SuggestReplyBody,
   type TranslateBody,
 } from './ai.schemas.js'
 import {
+  buildAnalyticsTranscript,
   buildSuggestReplyTranscript,
   isLatestMessageOutbound,
   isTranslatableMessageContent,
 } from './ai.utils.js'
+import {
+  buildConversationAnalyticsSystemPrompt,
+  buildConversationAnalyticsUserPrompt,
+} from './prompts/conversationAnalytics.prompt.js'
 import {
   buildSuggestReplySystemPrompt,
   buildSuggestReplyUserPrompt,
@@ -24,7 +35,6 @@ import { buildRewriteSystemPrompt } from './prompts/rewrite.prompt.js'
 import { buildTranslateSystemPrompt } from './prompts/translate.prompt.js'
 import { completeChat, completeChatJson } from './providers/openai.client.js'
 import * as authRepository from '../auth/auth.repository.js'
-import { findMessageByIdForOrganization } from '../inbox/repositories/message.repository.js'
 
 export async function rewriteDraft(input: RewriteBody) {
   const rewritten = await completeChat({
@@ -113,4 +123,36 @@ export async function suggestReply(auth: AuthContext, input: SuggestReplyBody) {
   }
 
   return { suggestions }
+}
+
+export async function analyzeConversation(auth: AuthContext, input: ConversationAnalyticsBody) {
+  const conversation = await findConversationSendContext(auth.organizationId, input.conversationId)
+  if (conversation === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
+  }
+
+  const [profile, messages] = await Promise.all([
+    findProfileByOrganizationId(auth.organizationId),
+    listMessagesByConversationId(auth.organizationId, input.conversationId),
+  ])
+
+  if (messages.length < ANALYTICS_MIN_MESSAGES) {
+    throw new AppError(400, 'BAD_REQUEST', 'No messages in this conversation yet')
+  }
+
+  const { transcript, omittedOlderMessageCount } = buildAnalyticsTranscript(messages)
+  const system = buildConversationAnalyticsSystemPrompt(profile)
+  const user = buildConversationAnalyticsUserPrompt({ transcript, omittedOlderMessageCount })
+
+  const raw = await completeChatJson({ system, user })
+
+  try {
+    return normalizeConversationAnalyticsResponse(raw)
+  } catch {
+    throw new AppError(
+      502,
+      'INTERNAL_ERROR',
+      'Could not generate conversation analytics. Please try again.',
+    )
+  }
 }
