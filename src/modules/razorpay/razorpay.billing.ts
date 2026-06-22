@@ -35,17 +35,6 @@ export async function ensureRazorpayCustomer(
   return subscriptionRepository.updateRazorpayCustomerId(organization.id, customer.id)
 }
 
-function resolveSubscriptionStartAt(organization: OrganizationRecord): Date | undefined {
-  const now = new Date()
-  const status = resolveEffectiveSubscriptionStatus(organization, now)
-
-  if (status === 'trialing' && new Date(organization.trial_ends_at) > now) {
-    return new Date(organization.trial_ends_at)
-  }
-
-  return undefined
-}
-
 function buildCheckoutResult(input: {
   organization: OrganizationRecord
   plan: BillingPlan
@@ -118,14 +107,11 @@ export async function createCheckoutSubscription(input: {
     return reused
   }
 
-  const startAt = resolveSubscriptionStartAt(organizationWithCustomer)
-
   const subscription = await razorpayClient.createSubscription({
     planId: plan.razorpayPlanId,
     customerId: organizationWithCustomer.razorpay_customer_id!,
     organizationId: organizationWithCustomer.id,
     planKey: plan.key,
-    startAt,
   })
 
   const updated = await subscriptionRepository.updateRazorpaySubscriptionId(

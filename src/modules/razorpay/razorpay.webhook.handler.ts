@@ -1,7 +1,6 @@
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
-import { resolveEffectiveSubscriptionStatus } from '../../shared/subscription/index.js'
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
 import * as subscriptionRepository from '../subscription/subscription.repository.js'
 import {
@@ -86,13 +85,6 @@ async function resolveOrganization(
   return null
 }
 
-function isTrialStillActive(organization: OrganizationRecord, now = new Date()): boolean {
-  return (
-    resolveEffectiveSubscriptionStatus(organization, now) === 'trialing' &&
-    new Date(organization.trial_ends_at) > now
-  )
-}
-
 async function syncRazorpayIdentifiers(
   organization: OrganizationRecord,
   subscription: RazorpaySubscription,
@@ -126,20 +118,6 @@ async function handleSubscriptionAuthenticated(
 
   const planKey = resolvePlanKey(subscription)
   const { startsAt, endsAt } = resolveBillingPeriod(subscription)
-
-  if (isTrialStillActive(organization)) {
-    await subscriptionRepository.applySubscriptionBillingState({
-      organizationId: organization.id,
-      subscriptionStatus: 'trialing',
-      plan: planKey ?? organization.plan,
-      conversationLimit: planKey ? getBillingPlanCatalogEntry(planKey).conversationLimit : undefined,
-      razorpayCustomerId: subscription.customer_id,
-      razorpaySubscriptionId: subscription.id,
-      subscriptionPeriodStartsAt: startsAt,
-      subscriptionPeriodEndsAt: endsAt,
-    })
-    return
-  }
 
   await subscriptionRepository.applySubscriptionBillingState({
     organizationId: organization.id,
