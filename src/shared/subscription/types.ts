@@ -7,6 +7,10 @@ export type OrganizationSubscriptionRecord = {
   readonly trial_started_at: string
   readonly trial_ends_at: string
   readonly subscription_period_ends_at: string | null
+  readonly subscription_period_starts_at: string | null
+  readonly razorpay_customer_id: string | null
+  readonly razorpay_subscription_id: string | null
+  readonly conversation_limit: number | null
 }
 
 export type SubscriptionAccess = {

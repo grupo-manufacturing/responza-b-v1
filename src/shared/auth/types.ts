@@ -26,6 +26,10 @@ export type AuthSessionPayload = {
     readonly subscriptionPeriodEndsAt: string | null
     readonly daysRemainingInTrial: number | null
     readonly requiresPayment: boolean
+    readonly conversationQuotaEnforced: boolean
+    readonly conversationLimit: number | null
+    readonly conversationsUsed: number | null
+    readonly conversationsRemaining: number | null
   }
   readonly businessDetails: {
     readonly completed: boolean

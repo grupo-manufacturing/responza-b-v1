@@ -27,6 +27,16 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().default(''),
   OPENAI_MODEL: z.string().trim().min(1).default('gpt-4o-mini'),
   AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  RAZORPAY_KEY_ID: z.string().default(''),
+  RAZORPAY_KEY_SECRET: z.string().default(''),
+  RAZORPAY_WEBHOOK_SECRET: z.string().default(''),
+  RAZORPAY_PLAN_BASIC: z.string().default(''),
+  RAZORPAY_PLAN_PREMIUM: z.string().default(''),
+  RAZORPAY_PLAN_SCALE: z.string().default(''),
+  RAZORPAY_PLAN_ENTERPRISE: z.string().default(''),
+  RAZORPAY_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  /** Monthly billing cycles sent to Razorpay when creating a subscription. */
+  RAZORPAY_SUBSCRIPTION_TOTAL_COUNT: z.coerce.number().int().positive().default(120),
 })
 
 export type Env = z.infer<typeof envSchema>

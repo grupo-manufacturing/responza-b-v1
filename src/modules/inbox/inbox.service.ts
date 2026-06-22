@@ -27,6 +27,7 @@ import type {
   MessageRecord,
   ParticipantRecord,
 } from './inbox.repository.js'
+import * as usageService from '../subscription/usage.service.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -78,6 +79,7 @@ type EnsureConversationInput = {
 async function ensureConversationContext(input: EnsureConversationInput): Promise<{
   conversation: ConversationRecord
   participant: ParticipantRecord
+  createdConversation: boolean
 }> {
   let channel = await inboxRepository.findChannelByIntegration({
     organizationId: input.organizationId,
@@ -99,12 +101,17 @@ async function ensureConversationContext(input: EnsureConversationInput): Promis
     externalId: input.conversationExternalId,
   })
 
+  let createdConversation = false
+
   if (conversation === null) {
+    await usageService.assertCanCreateConversation(input.organizationId)
     conversation = await inboxRepository.insertConversation({
       organization_id: input.organizationId,
       channel_id: channel.id,
       external_id: input.conversationExternalId,
     })
+    createdConversation = true
+    await usageService.recordBillableConversation(input.organizationId, conversation.id)
   }
 
   let participant = await inboxRepository.findParticipant({
@@ -134,7 +141,7 @@ async function ensureConversationContext(input: EnsureConversationInput): Promis
     }
   }
 
-  return { conversation, participant }
+  return { conversation, participant, createdConversation }
 }
 
 export async function syncChannel(
@@ -290,6 +297,8 @@ export async function sendMessage(
     content: input.content,
   })
 
+  await usageService.recordBillableConversation(auth.organizationId, conversationId)
+
   try {
     const delivery = await dispatchOutboundMessage({
       platform: conversation.platform,
@@ -411,7 +420,7 @@ export async function reactToMessage(
 }
 
 export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
-  const { conversation, participant } = await ensureConversationContext(input)
+  const { conversation, participant, createdConversation } = await ensureConversationContext(input)
 
   const message = await inboxRepository.insertInboundMessage({
     organization_id: input.organizationId,
@@ -443,6 +452,10 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
     }
   }
 
+  if (!createdConversation) {
+    await usageService.recordBillableConversation(input.organizationId, conversation.id)
+  }
+
   return {
     conversation: toConversationResponse(conversation),
     participant: toParticipantResponse(participant),
@@ -452,7 +465,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
 }
 
 export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
-  const { conversation, participant } = await ensureConversationContext(input)
+  const { conversation, participant, createdConversation } = await ensureConversationContext(input)
 
   const message = await inboxRepository.insertOutboundEchoMessage({
     organization_id: input.organizationId,
@@ -478,6 +491,10 @@ export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
       message: toMessageResponse(existing),
       duplicate: true,
     }
+  }
+
+  if (!createdConversation) {
+    await usageService.recordBillableConversation(input.organizationId, conversation.id)
   }
 
   return {

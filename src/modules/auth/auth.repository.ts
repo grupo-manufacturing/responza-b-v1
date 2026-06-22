@@ -1,10 +1,10 @@
 import { getSupabaseAdminClient } from '../../shared/database/index.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import type { OrganizationRecord } from '../subscription/subscription.repository.js'
-
-const ORGANIZATION_COLUMNS =
-  'id, email, name, plan, subscription_status, trial_started_at, trial_ends_at, subscription_period_ends_at, preferred_translation_language'
+import {
+  ORGANIZATION_COLUMNS,
+  type OrganizationRecord,
+} from '../subscription/subscription.repository.js'
 
 type BusinessProfileRow = {
   organization_id: string

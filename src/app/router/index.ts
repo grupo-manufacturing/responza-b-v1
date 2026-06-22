@@ -8,6 +8,7 @@ import { createIntegrationsRouter } from '../../modules/integrations/integration
 import { createInstagramOAuthRouter } from '../../modules/integrations/oauth/instagram.routes.js'
 import { createLeadsRouter } from '../../modules/leads/leads.routes.js'
 import { createMessagingRouter } from '../../modules/messaging/messaging.routes.js'
+import { createRazorpayWebhookRouter } from '../../modules/razorpay/razorpay.webhook.routes.js'
 import { createSubscriptionRouter } from '../../modules/subscription/subscription.routes.js'
 import {
   authenticateMiddleware,
@@ -21,6 +22,7 @@ export function createAppRouter(): Router {
   router.use(healthRouter)
   router.use('/auth', createInstagramOAuthRouter())
   router.use('/webhooks', createMessagingRouter())
+  router.use('/webhooks/razorpay', createRazorpayWebhookRouter())
 
   const apiRouter = Router()
 

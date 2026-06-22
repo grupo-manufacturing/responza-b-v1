@@ -8,6 +8,8 @@ export type ErrorCode =
   | 'SUBSCRIPTION_REQUIRED'
   | 'INTEGRATIONS_REQUIRED'
   | 'NOT_IMPLEMENTED'
+  | 'BILLING_NOT_CONFIGURED'
+  | 'CONVERSATION_LIMIT_REACHED'
   | 'INTERNAL_ERROR'
 
 export class AppError extends Error {
