@@ -3,13 +3,12 @@ import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
 import * as subscriptionRepository from '../subscription/subscription.repository.js'
-import {
-  getBillingPlanCatalogEntry,
-  isBillingPlanKey,
-  resolveBillingPlanKeyByRazorpayPlanId,
-  type BillingPlanKey,
-} from './billing.plans.js'
 import { recordWebhookEventIfNew } from './razorpay-webhook.repository.js'
+import {
+  applyActiveSubscriptionFromRazorpay,
+  resolveBillingPeriodFromSubscription,
+  resolvePlanKeyFromSubscription,
+} from './razorpay.subscriptionState.js'
 import { verifyRazorpayWebhookSignature } from './razorpay.webhookSignature.js'
 import type { RazorpaySubscription } from './razorpay.types.js'
 
@@ -23,14 +22,6 @@ type RazorpayWebhookPayload = {
   }
 }
 
-function unixToIso(unix: number | null | undefined): string | null {
-  if (unix === null || unix === undefined) {
-    return null
-  }
-
-  return new Date(unix * 1000).toISOString()
-}
-
 function readNoteValue(notes: Record<string, string> | null | undefined, key: string): string | null {
   const value = notes?.[key]
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -38,26 +29,6 @@ function readNoteValue(notes: Record<string, string> | null | undefined, key: st
   }
 
   return value.trim()
-}
-
-function resolvePlanKey(subscription: RazorpaySubscription): BillingPlanKey | null {
-  const env = loadEnv()
-  const fromNotes = readNoteValue(subscription.notes, 'plan_key')
-  if (fromNotes !== null && isBillingPlanKey(fromNotes)) {
-    return fromNotes
-  }
-
-  return resolveBillingPlanKeyByRazorpayPlanId(env, subscription.plan_id)
-}
-
-function resolveBillingPeriod(subscription: RazorpaySubscription): {
-  startsAt: string | null
-  endsAt: string | null
-} {
-  return {
-    startsAt: unixToIso(subscription.current_start) ?? unixToIso(subscription.start_at),
-    endsAt: unixToIso(subscription.current_end) ?? unixToIso(subscription.end_at),
-  }
 }
 
 async function resolveOrganization(
@@ -116,26 +87,15 @@ async function handleSubscriptionAuthenticated(
 ): Promise<void> {
   await syncRazorpayIdentifiers(organization, subscription)
 
-  const planKey = resolvePlanKey(subscription)
-  const { startsAt, endsAt } = resolveBillingPeriod(subscription)
-
-  await subscriptionRepository.applySubscriptionBillingState({
-    organizationId: organization.id,
-    subscriptionStatus: organization.subscription_status,
-    plan: planKey ?? organization.plan,
-    conversationLimit: planKey ? getBillingPlanCatalogEntry(planKey).conversationLimit : undefined,
-    razorpayCustomerId: subscription.customer_id,
-    razorpaySubscriptionId: subscription.id,
-    subscriptionPeriodStartsAt: startsAt,
-    subscriptionPeriodEndsAt: endsAt,
-  })
+  const planKey = resolvePlanKeyFromSubscription(subscription)
+  await applyActiveSubscriptionFromRazorpay(organization, subscription, planKey)
 }
 
 async function handleSubscriptionActivated(
   organization: OrganizationRecord,
   subscription: RazorpaySubscription,
 ): Promise<void> {
-  const planKey = resolvePlanKey(subscription)
+  const planKey = resolvePlanKeyFromSubscription(subscription)
   if (planKey === null) {
     logger.warn('[razorpay-webhook] subscription.activated without resolvable plan', {
       organizationId: organization.id,
@@ -145,45 +105,22 @@ async function handleSubscriptionActivated(
     return
   }
 
-  const plan = getBillingPlanCatalogEntry(planKey)
-  const { startsAt, endsAt } = resolveBillingPeriod(subscription)
-
-  await subscriptionRepository.applySubscriptionBillingState({
-    organizationId: organization.id,
-    subscriptionStatus: 'active',
-    plan: plan.key,
-    conversationLimit: plan.conversationLimit,
-    subscriptionPeriodStartsAt: startsAt,
-    subscriptionPeriodEndsAt: endsAt,
-    razorpayCustomerId: subscription.customer_id,
-    razorpaySubscriptionId: subscription.id,
-  })
+  await applyActiveSubscriptionFromRazorpay(organization, subscription, planKey)
 }
 
 async function handleSubscriptionCharged(
   organization: OrganizationRecord,
   subscription: RazorpaySubscription,
 ): Promise<void> {
-  const planKey = resolvePlanKey(subscription)
-  const { startsAt, endsAt } = resolveBillingPeriod(subscription)
-
-  await subscriptionRepository.applySubscriptionBillingState({
-    organizationId: organization.id,
-    subscriptionStatus: 'active',
-    plan: planKey ?? organization.plan,
-    conversationLimit: planKey ? getBillingPlanCatalogEntry(planKey).conversationLimit : undefined,
-    subscriptionPeriodStartsAt: startsAt,
-    subscriptionPeriodEndsAt: endsAt,
-    razorpayCustomerId: subscription.customer_id,
-    razorpaySubscriptionId: subscription.id,
-  })
+  const planKey = resolvePlanKeyFromSubscription(subscription)
+  await applyActiveSubscriptionFromRazorpay(organization, subscription, planKey)
 }
 
 async function handleSubscriptionCancelled(
   organization: OrganizationRecord,
   subscription: RazorpaySubscription,
 ): Promise<void> {
-  const { endsAt } = resolveBillingPeriod(subscription)
+  const { endsAt } = resolveBillingPeriodFromSubscription(subscription)
   const periodEnd = endsAt !== null ? new Date(endsAt) : null
   const keepAccessUntilPeriodEnd = periodEnd !== null && periodEnd > new Date()
 

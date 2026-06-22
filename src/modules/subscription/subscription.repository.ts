@@ -35,19 +35,27 @@ export async function activatePaidSubscription(
     conversationLimit: number
     periodStartsAt: string
     periodEndsAt: string
+    endTrial?: boolean
   },
 ): Promise<OrganizationRecord> {
   const client = getSupabaseAdminClient()
+  const now = new Date().toISOString()
+  const update: Record<string, unknown> = {
+    subscription_status: 'active',
+    plan: input.plan,
+    conversation_limit: input.conversationLimit,
+    subscription_period_starts_at: input.periodStartsAt,
+    subscription_period_ends_at: input.periodEndsAt,
+    updated_at: now,
+  }
+
+  if (input.endTrial === true) {
+    update.trial_ends_at = now
+  }
+
   const { data, error } = await client
     .from('organizations')
-    .update({
-      subscription_status: 'active',
-      plan: input.plan,
-      conversation_limit: input.conversationLimit,
-      subscription_period_starts_at: input.periodStartsAt,
-      subscription_period_ends_at: input.periodEndsAt,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq('id', organizationId)
     .select(ORGANIZATION_COLUMNS)
     .single()
@@ -159,6 +167,7 @@ export type ApplySubscriptionBillingStateInput = {
   conversationLimit?: number | null
   subscriptionPeriodStartsAt?: string | null
   subscriptionPeriodEndsAt?: string | null
+  trialEndsAt?: string | null
   razorpayCustomerId?: string | null
   razorpaySubscriptionId?: string | null
 }
@@ -186,6 +195,10 @@ export async function applySubscriptionBillingState(
 
   if (input.subscriptionPeriodEndsAt !== undefined) {
     update.subscription_period_ends_at = input.subscriptionPeriodEndsAt
+  }
+
+  if (input.trialEndsAt !== undefined) {
+    update.trial_ends_at = input.trialEndsAt
   }
 
   if (input.razorpayCustomerId !== undefined) {

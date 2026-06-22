@@ -7,6 +7,11 @@ import type { BillingPlan } from './billing.plans.js'
 import type { BillingPlanKey } from './billing.plans.js'
 import { isRazorpayBillingConfigured, resolveBillingPlan } from './billing.plans.js'
 import * as razorpayClient from './razorpay.client.js'
+import {
+  applyActiveSubscriptionFromRazorpay,
+  isPaidRazorpaySubscription,
+  resolvePlanKeyFromSubscription,
+} from './razorpay.subscriptionState.js'
 import type { RazorpaySubscription } from './razorpay.types.js'
 
 const PENDING_CHECKOUT_STATUSES = new Set(['created', 'authenticated', 'pending'])
@@ -163,4 +168,17 @@ export async function getOrganizationRazorpaySubscription(organizationId: string
 
   const subscription = await razorpayClient.fetchSubscription(organization.razorpay_subscription_id)
   return { organization, subscription }
+}
+
+export async function syncOrganizationSubscriptionFromRazorpay(
+  organizationId: string,
+): Promise<OrganizationRecord> {
+  const { organization, subscription } = await getOrganizationRazorpaySubscription(organizationId)
+
+  if (!isPaidRazorpaySubscription(subscription)) {
+    return organization
+  }
+
+  const planKey = resolvePlanKeyFromSubscription(subscription)
+  return applyActiveSubscriptionFromRazorpay(organization, subscription, planKey)
 }

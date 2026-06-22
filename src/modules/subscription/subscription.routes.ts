@@ -64,5 +64,14 @@ export function createSubscriptionRouter(): Router {
       .catch(next)
   })
 
+  router.post('/sync', (req, res, next) => {
+    void subscriptionService
+      .syncSubscriptionFromRazorpay(req.auth!.organizationId)
+      .then((subscription) => {
+        res.status(200).json({ subscription })
+      })
+      .catch(next)
+  })
+
   return router
 }

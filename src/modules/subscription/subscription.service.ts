@@ -67,6 +67,7 @@ export async function activateSubscription(organizationId: string, planKey: Bill
     conversationLimit: plan.conversationLimit,
     periodStartsAt: periodStartsAt.toISOString(),
     periodEndsAt: periodEndsAt.toISOString(),
+    endTrial: organization.subscription_status === 'trialing',
   })
 
   const usage = await usageService.getConversationUsageSummary(updated)
@@ -121,5 +122,15 @@ export async function cancelSubscription(organizationId: string, cancelAtCycleEn
   return {
     razorpayStatus: result.subscription.status,
     cancelAtCycleEnd,
+  }
+}
+
+export async function syncSubscriptionFromRazorpay(organizationId: string) {
+  const updated = await razorpayBilling.syncOrganizationSubscriptionFromRazorpay(organizationId)
+  const usage = await usageService.getConversationUsageSummary(updated)
+
+  return {
+    ...toSubscriptionResponse(updated, updated.plan),
+    ...usage,
   }
 }
