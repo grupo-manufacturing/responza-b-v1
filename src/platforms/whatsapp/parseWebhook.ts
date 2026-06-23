@@ -1,17 +1,20 @@
 import { asRecord, asString } from '../shared/jsonGuards.js'
 
+export type WhatsAppInboundContentType = 'text' | 'image' | 'video' | 'audio' | 'document'
+
 export type WhatsAppInboundMessage = {
   phoneNumberId: string | null
   wabaId: string | null
   channelDisplayName: string | null
   from: string
   platformMessageId: string
-  contentType: 'text' | 'image'
+  contentType: WhatsAppInboundContentType
   content: string
   contactDisplayName: string | null
-  image?: {
+  media?: {
     id: string
     mimeType: string | null
+    filename?: string | null
   }
 }
 
@@ -38,26 +41,41 @@ export type WhatsAppOutboundEcho = {
   contactDisplayName: string | null
 }
 
+const WHATSAPP_MEDIA_TYPES: Record<string, Exclude<WhatsAppInboundContentType, 'text'>> = {
+  image: 'image',
+  video: 'video',
+  audio: 'audio',
+  voice: 'audio',
+  document: 'document',
+  sticker: 'image',
+}
+
 function messageContent(message: Record<string, unknown>): {
-  contentType: 'text' | 'image'
+  contentType: WhatsAppInboundContentType
   content: string
-  image?: { id: string; mimeType: string | null }
+  media?: { id: string; mimeType: string | null; filename?: string | null }
 } {
   const type = asString(message.type) ?? 'unknown'
+  const mediaContentType = WHATSAPP_MEDIA_TYPES[type]
 
-  if (type === 'image') {
-    const image = asRecord(message.image)
-    const mediaId = image !== null ? asString(image.id) : null
-    const caption = image !== null ? asString(image.caption) : null
-    const mimeType = image !== null ? asString(image.mime_type) : null
+  if (mediaContentType !== undefined) {
+    const mediaRecord = asRecord(message[type])
+    const mediaId = mediaRecord !== null ? asString(mediaRecord.id) : null
+    const caption = mediaRecord !== null ? asString(mediaRecord.caption) : null
+    const mimeType = mediaRecord !== null ? asString(mediaRecord.mime_type) : null
+    const filename = mediaRecord !== null ? asString(mediaRecord.filename) : null
 
     if (mediaId !== null) {
+      const trimmedCaption = caption?.trim() ?? ''
+      const trimmedFilename = filename?.trim() ?? ''
+
       return {
-        contentType: 'image',
-        content: caption?.trim() ?? '',
-        image: {
+        contentType: mediaContentType,
+        content: trimmedCaption.length > 0 ? trimmedCaption : trimmedFilename,
+        media: {
           id: mediaId,
           mimeType,
+          filename: trimmedFilename.length > 0 ? trimmedFilename : null,
         },
       }
     }
@@ -165,7 +183,7 @@ export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMess
           contentType: parsed.contentType,
           content: parsed.content,
           contactDisplayName: contactNames.get(from) ?? null,
-          image: parsed.image,
+          media: parsed.media,
         })
       }
     }

@@ -185,11 +185,12 @@ export async function processWhatsAppWebhook(input: {
           platformMessageId: inbound.platformMessageId,
           content: inbound.content,
           contentType: inbound.contentType,
-          image:
-            inbound.image !== undefined
+          media:
+            inbound.media !== undefined
               ? {
-                  platformMediaId: inbound.image.id,
-                  mimeType: inbound.image.mimeType,
+                  platformMediaId: inbound.media.id,
+                  mimeType: inbound.media.mimeType,
+                  filename: inbound.media.filename,
                 }
               : undefined,
         },

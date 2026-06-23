@@ -185,10 +185,11 @@ export async function processInstagramWebhook(input: {
           platformMessageId: inbound.platformMessageId,
           content: inbound.content,
           contentType: inbound.contentType,
-          image:
-            inbound.image !== undefined
+          media:
+            inbound.media !== undefined
               ? {
-                  mediaUrl: inbound.image.url,
+                  mediaUrl: inbound.media.url,
+                  mimeType: inbound.media.mimeType,
                 }
               : undefined,
         },

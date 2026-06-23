@@ -4,18 +4,20 @@ import { logger } from '../../shared/logger.js'
 import { createMessageMediaSignedUrl, uploadMessageMedia } from '../../shared/storage/index.js'
 import {
   buildMessageMediaStoragePath,
-  extensionForImageMimeType,
-  isAllowedInboundImageMimeType,
+  extensionForMediaMimeType,
+  isAllowedInboundMediaMimeType,
   MEDIA_MAX_FILE_SIZE_BYTES,
+  type InboundMediaContentType,
 } from './media.constants.js'
 
-export type StoredInboundImageResult = {
+export type StoredInboundMediaResult = {
   storagePath: string
   mimeType: string
   fileSizeBytes: number
 }
 
-async function persistInboundImageBuffer(input: {
+async function persistInboundMediaBuffer(input: {
+  contentType: InboundMediaContentType
   organizationId: string
   conversationId: string
   platformMessageId: string
@@ -23,23 +25,25 @@ async function persistInboundImageBuffer(input: {
   mimeType: string
   mimeTypeHint: string | null
   logContext: Record<string, string>
-}): Promise<StoredInboundImageResult | null> {
+}): Promise<StoredInboundMediaResult | null> {
   const resolvedMimeType =
     input.mimeType.length > 0 && input.mimeType !== 'application/octet-stream'
       ? input.mimeType
       : (input.mimeTypeHint ?? 'application/octet-stream')
 
-  if (!isAllowedInboundImageMimeType(resolvedMimeType)) {
-    logger.warn('Skipping unsupported inbound image mime type', {
+  if (!isAllowedInboundMediaMimeType(input.contentType, resolvedMimeType)) {
+    logger.warn('Skipping unsupported inbound media mime type', {
       ...input.logContext,
+      contentType: input.contentType,
       mimeType: resolvedMimeType,
     })
     return null
   }
 
   if (input.buffer.byteLength > MEDIA_MAX_FILE_SIZE_BYTES) {
-    logger.warn('Skipping inbound image over size limit', {
+    logger.warn('Skipping inbound media over size limit', {
       ...input.logContext,
+      contentType: input.contentType,
       fileSizeBytes: input.buffer.byteLength,
       maxBytes: MEDIA_MAX_FILE_SIZE_BYTES,
     })
@@ -50,7 +54,7 @@ async function persistInboundImageBuffer(input: {
     organizationId: input.organizationId,
     conversationId: input.conversationId,
     platformMessageId: input.platformMessageId,
-    extension: extensionForImageMimeType(resolvedMimeType),
+    extension: extensionForMediaMimeType(input.contentType, resolvedMimeType),
   })
 
   await uploadMessageMedia({
@@ -66,14 +70,15 @@ async function persistInboundImageBuffer(input: {
   }
 }
 
-export async function storeInboundWhatsAppImage(input: {
+export async function storeInboundWhatsAppMedia(input: {
+  contentType: InboundMediaContentType
   organizationId: string
   conversationId: string
   platformMessageId: string
   platformMediaId: string
   mimeTypeHint: string | null
   accessToken: string
-}): Promise<StoredInboundImageResult | null> {
+}): Promise<StoredInboundMediaResult | null> {
   try {
     const downloaded = await fetchWhatsAppMediaBinary({
       mediaId: input.platformMediaId,
@@ -81,15 +86,17 @@ export async function storeInboundWhatsAppImage(input: {
     })
 
     if (downloaded.fileSizeBytes > MEDIA_MAX_FILE_SIZE_BYTES) {
-      logger.warn('Skipping WhatsApp image over size limit', {
+      logger.warn('Skipping WhatsApp media over size limit', {
         platformMessageId: input.platformMessageId,
+        contentType: input.contentType,
         fileSizeBytes: downloaded.fileSizeBytes,
         maxBytes: MEDIA_MAX_FILE_SIZE_BYTES,
       })
       return null
     }
 
-    return await persistInboundImageBuffer({
+    return await persistInboundMediaBuffer({
+      contentType: input.contentType,
       organizationId: input.organizationId,
       conversationId: input.conversationId,
       platformMessageId: input.platformMessageId,
@@ -102,23 +109,25 @@ export async function storeInboundWhatsAppImage(input: {
       },
     })
   } catch (error) {
-    logger.warn('Failed to store inbound WhatsApp image', {
+    logger.warn('Failed to store inbound WhatsApp media', {
       platformMessageId: input.platformMessageId,
       platformMediaId: input.platformMediaId,
+      contentType: input.contentType,
       error: error instanceof Error ? error.message : String(error),
     })
     return null
   }
 }
 
-export async function storeInboundInstagramImage(input: {
+export async function storeInboundInstagramMedia(input: {
+  contentType: InboundMediaContentType
   organizationId: string
   conversationId: string
   platformMessageId: string
   mediaUrl: string
   mimeTypeHint: string | null
   accessToken: string
-}): Promise<StoredInboundImageResult | null> {
+}): Promise<StoredInboundMediaResult | null> {
   try {
     const downloaded = await fetchInstagramMediaBinary({
       mediaUrl: input.mediaUrl,
@@ -126,15 +135,17 @@ export async function storeInboundInstagramImage(input: {
     })
 
     if (downloaded.fileSizeBytes > MEDIA_MAX_FILE_SIZE_BYTES) {
-      logger.warn('Skipping Instagram image over size limit', {
+      logger.warn('Skipping Instagram media over size limit', {
         platformMessageId: input.platformMessageId,
+        contentType: input.contentType,
         fileSizeBytes: downloaded.fileSizeBytes,
         maxBytes: MEDIA_MAX_FILE_SIZE_BYTES,
       })
       return null
     }
 
-    return await persistInboundImageBuffer({
+    return await persistInboundMediaBuffer({
+      contentType: input.contentType,
       organizationId: input.organizationId,
       conversationId: input.conversationId,
       platformMessageId: input.platformMessageId,
@@ -147,8 +158,9 @@ export async function storeInboundInstagramImage(input: {
       },
     })
   } catch (error) {
-    logger.warn('Failed to store inbound Instagram image', {
+    logger.warn('Failed to store inbound Instagram media', {
       platformMessageId: input.platformMessageId,
+      contentType: input.contentType,
       error: error instanceof Error ? error.message : String(error),
     })
     return null

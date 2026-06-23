@@ -1,14 +1,17 @@
 import { asRecord, asString } from '../shared/jsonGuards.js'
 
+export type InstagramInboundContentType = 'text' | 'image' | 'video' | 'audio' | 'document'
+
 export type InstagramInboundMessage = {
   businessAccountId: string | null
   from: string
   platformMessageId: string
-  contentType: 'text' | 'image'
+  contentType: InstagramInboundContentType
   content: string
   contactDisplayName: string | null
-  image?: {
+  media?: {
     url: string
+    mimeType?: string | null
   }
 }
 
@@ -30,10 +33,17 @@ export type InstagramOutboundEcho = {
   content: string
 }
 
+const INSTAGRAM_ATTACHMENT_TYPES: Record<string, Exclude<InstagramInboundContentType, 'text'>> = {
+  image: 'image',
+  video: 'video',
+  audio: 'audio',
+  file: 'document',
+}
+
 function messageContent(message: Record<string, unknown>): {
-  contentType: 'text' | 'image'
+  contentType: InstagramInboundContentType
   content: string
-  image?: { url: string }
+  media?: { url: string; mimeType?: string | null }
 } {
   const text = asString(message.text)?.trim() ?? ''
 
@@ -44,12 +54,13 @@ function messageContent(message: Record<string, unknown>): {
       const type = asString(attachmentObj.type)
       const payload = asRecord(attachmentObj.payload)
       const url = payload !== null ? asString(payload.url) : null
+      const contentType = type !== null ? INSTAGRAM_ATTACHMENT_TYPES[type] : undefined
 
-      if (type === 'image' && url !== null) {
+      if (contentType !== undefined && url !== null) {
         return {
-          contentType: 'image',
+          contentType,
           content: text,
-          image: { url },
+          media: { url },
         }
       }
 
@@ -125,7 +136,7 @@ export function parseInstagramInboundMessages(body: unknown): InstagramInboundMe
         contentType: parsed.contentType,
         content: parsed.content,
         contactDisplayName: null,
-        image: parsed.image,
+        media: parsed.media,
       })
     }
   }

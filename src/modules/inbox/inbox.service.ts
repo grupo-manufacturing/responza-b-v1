@@ -30,7 +30,8 @@ import type {
   ParticipantRecord,
 } from './inbox.repository.js'
 import * as usageService from '../subscription/usage.service.js'
-import { storeInboundInstagramImage, storeInboundWhatsAppImage, resolveMessageMediaUrl } from '../media/media.service.js'
+import { storeInboundInstagramMedia, storeInboundWhatsAppMedia, resolveMessageMediaUrl } from '../media/media.service.js'
+import type { InboundMediaContentType } from '../media/media.constants.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -47,10 +48,11 @@ export type ReceiveInboundMessageInput = {
     platformMessageId: string
     content: string
     contentType?: MessageContentType
-    image?: {
+    media?: {
       platformMediaId?: string
       mediaUrl?: string
       mimeType?: string | null
+      filename?: string | null
     }
   }
   accessToken?: string
@@ -84,6 +86,29 @@ type EnsureConversationInput = {
     displayName: string
     avatarUrl?: string | null
   }
+}
+
+function isInboundMediaContentType(
+  contentType: MessageContentType,
+): contentType is InboundMediaContentType {
+  return contentType !== 'text'
+}
+
+function fallbackInboundMediaContent(
+  platform: IntegrationPlatform,
+  contentType: InboundMediaContentType,
+  filename?: string | null,
+): string {
+  const trimmedFilename = filename?.trim() ?? ''
+  if (trimmedFilename.length > 0) {
+    return trimmedFilename
+  }
+
+  if (platform === 'instagram') {
+    return `(attachment:${contentType})`
+  }
+
+  return `(non-text:${contentType})`
 }
 
 async function ensureConversationContext(input: EnsureConversationInput): Promise<{
@@ -445,27 +470,29 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   let fileSizeBytes: number | null = null
 
   if (
-    contentType === 'image' &&
-    input.message.image !== undefined &&
+    isInboundMediaContentType(contentType) &&
+    input.message.media !== undefined &&
     input.accessToken !== undefined
   ) {
     const stored =
-      input.platform === 'whatsapp' && input.message.image.platformMediaId !== undefined
-        ? await storeInboundWhatsAppImage({
+      input.platform === 'whatsapp' && input.message.media.platformMediaId !== undefined
+        ? await storeInboundWhatsAppMedia({
+            contentType,
             organizationId: input.organizationId,
             conversationId: conversation.id,
             platformMessageId: input.message.platformMessageId,
-            platformMediaId: input.message.image.platformMediaId,
-            mimeTypeHint: input.message.image.mimeType ?? null,
+            platformMediaId: input.message.media.platformMediaId,
+            mimeTypeHint: input.message.media.mimeType ?? null,
             accessToken: input.accessToken,
           })
-        : input.platform === 'instagram' && input.message.image.mediaUrl !== undefined
-          ? await storeInboundInstagramImage({
+        : input.platform === 'instagram' && input.message.media.mediaUrl !== undefined
+          ? await storeInboundInstagramMedia({
+              contentType,
               organizationId: input.organizationId,
               conversationId: conversation.id,
               platformMessageId: input.message.platformMessageId,
-              mediaUrl: input.message.image.mediaUrl,
-              mimeTypeHint: input.message.image.mimeType ?? null,
+              mediaUrl: input.message.media.mediaUrl,
+              mimeTypeHint: input.message.media.mimeType ?? null,
               accessToken: input.accessToken,
             })
           : null
@@ -474,10 +501,10 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       storagePath = stored.storagePath
       mimeType = stored.mimeType
       platformMediaId =
-        input.message.image.platformMediaId ?? input.message.image.mediaUrl ?? null
+        input.message.media.platformMediaId ?? input.message.media.mediaUrl ?? null
       fileSizeBytes = stored.fileSizeBytes
     } else if (content.trim().length === 0) {
-      content = input.platform === 'instagram' ? '(attachment:image)' : '(non-text:image)'
+      content = fallbackInboundMediaContent(input.platform, contentType, input.message.media.filename)
       contentType = 'text'
     }
   }
