@@ -4,8 +4,12 @@ export type InstagramInboundMessage = {
   businessAccountId: string | null
   from: string
   platformMessageId: string
+  contentType: 'text' | 'image'
   content: string
   contactDisplayName: string | null
+  image?: {
+    url: string
+  }
 }
 
 export type InstagramOutboundReadReceipt = {
@@ -26,22 +30,47 @@ export type InstagramOutboundEcho = {
   content: string
 }
 
-function messageContent(message: Record<string, unknown>): string {
-  const text = asString(message.text)
-  if (text !== null) {
-    return text
-  }
+function messageContent(message: Record<string, unknown>): {
+  contentType: 'text' | 'image'
+  content: string
+  image?: { url: string }
+} {
+  const text = asString(message.text)?.trim() ?? ''
 
   if (message.attachments && Array.isArray(message.attachments)) {
     const attachment = message.attachments[0]
     if (attachment && typeof attachment === 'object') {
       const attachmentObj = attachment as Record<string, unknown>
       const type = asString(attachmentObj.type)
-      return `(attachment:${type || 'unknown'})`
+      const payload = asRecord(attachmentObj.payload)
+      const url = payload !== null ? asString(payload.url) : null
+
+      if (type === 'image' && url !== null) {
+        return {
+          contentType: 'image',
+          content: text,
+          image: { url },
+        }
+      }
+
+      return {
+        contentType: 'text',
+        content: `(attachment:${type || 'unknown'})`,
+      }
     }
   }
 
-  return '(non-text)'
+  if (text.length > 0) {
+    return {
+      contentType: 'text',
+      content: text,
+    }
+  }
+
+  return {
+    contentType: 'text',
+    content: '(non-text)',
+  }
 }
 
 export function parseInstagramInboundMessages(body: unknown): InstagramInboundMessage[] {
@@ -87,12 +116,16 @@ export function parseInstagramInboundMessages(body: unknown): InstagramInboundMe
         asString(message.mid) ??
         `ig_${Date.now()}_${from}_${Math.random().toString(36).slice(2, 11)}`
 
+      const parsed = messageContent(message)
+
       inbound.push({
         businessAccountId,
         from,
         platformMessageId,
-        content: messageContent(message),
+        contentType: parsed.contentType,
+        content: parsed.content,
         contactDisplayName: null,
+        image: parsed.image,
       })
     }
   }
@@ -151,7 +184,7 @@ export function parseInstagramOutboundEchoes(body: unknown): InstagramOutboundEc
         businessAccountId,
         to,
         platformMessageId,
-        content: messageContent(message),
+        content: messageContent(message).content,
       })
     }
   }

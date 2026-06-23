@@ -180,9 +180,17 @@ export async function processInstagramWebhook(input: {
           displayName: presentation.displayName,
           avatarUrl: presentation.avatarUrl,
         },
+        accessToken: integration.accessToken,
         message: {
           platformMessageId: inbound.platformMessageId,
           content: inbound.content,
+          contentType: inbound.contentType,
+          image:
+            inbound.image !== undefined
+              ? {
+                  mediaUrl: inbound.image.url,
+                }
+              : undefined,
         },
       })
     } catch (error) {

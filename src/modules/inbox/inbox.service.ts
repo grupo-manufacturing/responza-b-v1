@@ -30,7 +30,7 @@ import type {
   ParticipantRecord,
 } from './inbox.repository.js'
 import * as usageService from '../subscription/usage.service.js'
-import { storeInboundWhatsAppImage, resolveMessageMediaUrl } from '../media/media.service.js'
+import { storeInboundInstagramImage, storeInboundWhatsAppImage, resolveMessageMediaUrl } from '../media/media.service.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -48,8 +48,9 @@ export type ReceiveInboundMessageInput = {
     content: string
     contentType?: MessageContentType
     image?: {
-      platformMediaId: string
-      mimeType: string | null
+      platformMediaId?: string
+      mediaUrl?: string
+      mimeType?: string | null
     }
   }
   accessToken?: string
@@ -446,25 +447,37 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   if (
     contentType === 'image' &&
     input.message.image !== undefined &&
-    input.accessToken !== undefined &&
-    input.platform === 'whatsapp'
+    input.accessToken !== undefined
   ) {
-    const stored = await storeInboundWhatsAppImage({
-      organizationId: input.organizationId,
-      conversationId: conversation.id,
-      platformMessageId: input.message.platformMessageId,
-      platformMediaId: input.message.image.platformMediaId,
-      mimeTypeHint: input.message.image.mimeType,
-      accessToken: input.accessToken,
-    })
+    const stored =
+      input.platform === 'whatsapp' && input.message.image.platformMediaId !== undefined
+        ? await storeInboundWhatsAppImage({
+            organizationId: input.organizationId,
+            conversationId: conversation.id,
+            platformMessageId: input.message.platformMessageId,
+            platformMediaId: input.message.image.platformMediaId,
+            mimeTypeHint: input.message.image.mimeType ?? null,
+            accessToken: input.accessToken,
+          })
+        : input.platform === 'instagram' && input.message.image.mediaUrl !== undefined
+          ? await storeInboundInstagramImage({
+              organizationId: input.organizationId,
+              conversationId: conversation.id,
+              platformMessageId: input.message.platformMessageId,
+              mediaUrl: input.message.image.mediaUrl,
+              mimeTypeHint: input.message.image.mimeType ?? null,
+              accessToken: input.accessToken,
+            })
+          : null
 
     if (stored !== null) {
       storagePath = stored.storagePath
       mimeType = stored.mimeType
-      platformMediaId = input.message.image.platformMediaId
+      platformMediaId =
+        input.message.image.platformMediaId ?? input.message.image.mediaUrl ?? null
       fileSizeBytes = stored.fileSizeBytes
     } else if (content.trim().length === 0) {
-      content = '(non-text:image)'
+      content = input.platform === 'instagram' ? '(attachment:image)' : '(non-text:image)'
       contentType = 'text'
     }
   }

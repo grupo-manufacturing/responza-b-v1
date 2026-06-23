@@ -1,4 +1,5 @@
 export { exchangeInstagramAccessToken, fetchInstagramUserInfo } from './exchangeAccessToken.js'
+export { fetchInstagramMediaBinary } from './fetchMedia.js'
 export {
   parseInstagramInboundMessages,
   parseInstagramInboundReactions,
