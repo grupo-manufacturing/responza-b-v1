@@ -27,13 +27,18 @@ export async function uploadMessageMedia(input: {
   }
 }
 
-export async function createMessageMediaSignedUrl(storagePath: string): Promise<string> {
+export async function createMessageMediaSignedUrl(
+  storagePath: string,
+  options?: { download?: string | boolean },
+): Promise<string> {
   const client = getSupabaseAdminClient()
   const bucket = getMessageMediaBucketName()
 
   const { data, error } = await client.storage
     .from(bucket)
-    .createSignedUrl(storagePath, SIGNED_URL_EXPIRY_SECONDS)
+    .createSignedUrl(storagePath, SIGNED_URL_EXPIRY_SECONDS, {
+      download: options?.download,
+    })
 
   if (error !== null || data?.signedUrl === undefined) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create media URL')

@@ -225,7 +225,11 @@ function toParticipantResponse(participant: ParticipantRecord) {
 }
 
 async function toMessageResponse(message: MessageRecord) {
-  const mediaUrl = await resolveMessageMediaUrl(message.storage_path)
+  const mediaUrl = await resolveMessageMediaUrl(message.storage_path, {
+    contentType: message.content_type,
+    mimeType: message.mime_type,
+    content: message.content,
+  })
 
   return {
     id: message.id,

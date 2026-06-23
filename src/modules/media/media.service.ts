@@ -4,9 +4,11 @@ import { logger } from '../../shared/logger.js'
 import { createMessageMediaSignedUrl, uploadMessageMedia } from '../../shared/storage/index.js'
 import {
   buildMessageMediaStoragePath,
+  buildMediaDownloadFilename,
   extensionForMediaMimeType,
   MEDIA_MAX_FILE_SIZE_BYTES,
   resolveStorageMimeType,
+  sniffMimeTypeFromBuffer,
   type InboundMediaContentType,
 } from './media.constants.js'
 
@@ -34,6 +36,7 @@ async function persistInboundMediaBuffer(input: {
     mimeTypeHint: input.mimeTypeHint,
     filename: input.filename,
     mediaUrl: input.mediaUrl,
+    sniffedMime: sniffMimeTypeFromBuffer(input.buffer),
   })
 
   if (resolvedMimeType === null) {
@@ -180,13 +183,27 @@ export async function storeInboundInstagramMedia(input: {
 
 export async function resolveMessageMediaUrl(
   storagePath: string | null,
+  options?: {
+    contentType?: 'text' | 'image' | 'video' | 'audio' | 'document'
+    mimeType?: string | null
+    content?: string
+  },
 ): Promise<string | null> {
   if (storagePath === null || storagePath.length === 0) {
     return null
   }
 
   try {
-    return await createMessageMediaSignedUrl(storagePath)
+    const download =
+      options?.contentType === 'document'
+        ? buildMediaDownloadFilename({
+            storagePath,
+            content: options.content ?? '',
+            mimeType: options.mimeType ?? null,
+          })
+        : undefined
+
+    return await createMessageMediaSignedUrl(storagePath, { download })
   } catch (error) {
     logger.warn('Failed to create signed media URL', {
       storagePath,

@@ -104,6 +104,81 @@ const ALLOWED_MIME_TYPES_BY_CONTENT_TYPE: Record<InboundMediaContentType, readon
   document: INBOUND_DOCUMENT_MIME_TYPES,
 }
 
+const ALL_INBOUND_MIME_TYPES = new Set<string>([
+  ...INBOUND_IMAGE_MIME_TYPES,
+  ...INBOUND_VIDEO_MIME_TYPES,
+  ...INBOUND_AUDIO_MIME_TYPES,
+  ...INBOUND_DOCUMENT_MIME_TYPES,
+])
+
+export function sniffMimeTypeFromBuffer(buffer: Buffer): string | null {
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-') {
+    return 'application/pdf'
+  }
+
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg'
+  }
+
+  if (
+    buffer.length >= 4 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return 'image/png'
+  }
+
+  if (
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp'
+  }
+
+  if (buffer.length >= 6 && buffer.toString('ascii', 0, 3) === 'GIF') {
+    return 'image/gif'
+  }
+
+  if (buffer.length >= 8 && buffer.toString('ascii', 4, 8) === 'ftyp') {
+    return 'video/mp4'
+  }
+
+  if (
+    buffer.length >= 4 &&
+    buffer[0] === 0x50 &&
+    buffer[1] === 0x4b &&
+    buffer[2] === 0x03 &&
+    buffer[3] === 0x04
+  ) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  }
+
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))) {
+    return 'application/msword'
+  }
+
+  return null
+}
+
+function mimeAllowedForStorage(
+  contentType: InboundMediaContentType,
+  mime: string,
+): boolean {
+  if (ALLOWED_MIME_TYPES_BY_CONTENT_TYPE[contentType].includes(mime)) {
+    return true
+  }
+
+  // Instagram "file" attachments are not always PDFs.
+  if (contentType === 'document' && ALL_INBOUND_MIME_TYPES.has(mime)) {
+    return true
+  }
+
+  return false
+}
+
 export function normalizeMimeType(mimeType: string): string {
   return mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
 }
@@ -150,7 +225,16 @@ export function resolveStorageMimeType(input: {
   mimeTypeHint: string | null
   filename?: string | null
   mediaUrl?: string | null
+  sniffedMime?: string | null
 }): string | null {
+  const sniffed = input.sniffedMime !== null && input.sniffedMime !== undefined
+    ? normalizeMimeType(input.sniffedMime)
+    : null
+
+  if (sniffed !== null && sniffed.length > 0 && mimeAllowedForStorage(input.contentType, sniffed)) {
+    return sniffed
+  }
+
   const candidates = [
     normalizeMimeType(input.downloadedMime),
     input.mimeTypeHint !== null ? normalizeMimeType(input.mimeTypeHint) : '',
@@ -167,17 +251,42 @@ export function resolveStorageMimeType(input: {
       return 'video/quicktime'
     }
 
-    if (ALLOWED_MIME_TYPES_BY_CONTENT_TYPE[input.contentType].includes(mime)) {
+    if (mimeAllowedForStorage(input.contentType, mime)) {
       return mime
     }
   }
 
+  if (input.contentType === 'document') {
+    return null
+  }
+
   const defaultMime = DEFAULT_STORAGE_MIME[input.contentType]
-  if (ALLOWED_MIME_TYPES_BY_CONTENT_TYPE[input.contentType].includes(defaultMime)) {
+  if (mimeAllowedForStorage(input.contentType, defaultMime)) {
     return defaultMime
   }
 
   return null
+}
+
+export function buildMediaDownloadFilename(input: {
+  storagePath: string
+  content: string
+  mimeType: string | null
+}): string {
+  const trimmedContent = input.content.trim()
+  if (trimmedContent.length > 0 && trimmedContent.includes('.')) {
+    return trimmedContent.replace(/[\\/:*?"<>|]/g, '_')
+  }
+
+  const extension = input.storagePath.includes('.')
+    ? (input.storagePath.split('.').pop()?.toLowerCase() ?? 'bin')
+    : 'bin'
+
+  if (input.mimeType === 'application/pdf' || extension === 'pdf') {
+    return `document.${extension}`
+  }
+
+  return `attachment.${extension}`
 }
 
 export function isAllowedInboundImageMimeType(
