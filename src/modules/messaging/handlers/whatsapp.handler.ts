@@ -180,9 +180,18 @@ export async function processWhatsAppWebhook(input: {
           platformUserId: inbound.from,
           displayName: formatWhatsAppDisplayName(inbound.from, inbound.contactDisplayName),
         },
+        accessToken: integration.accessToken,
         message: {
           platformMessageId: inbound.platformMessageId,
           content: inbound.content,
+          contentType: inbound.contentType,
+          image:
+            inbound.image !== undefined
+              ? {
+                  platformMediaId: inbound.image.id,
+                  mimeType: inbound.image.mimeType,
+                }
+              : undefined,
         },
       })
     } catch (error) {

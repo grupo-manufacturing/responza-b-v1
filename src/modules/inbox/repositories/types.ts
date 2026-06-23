@@ -1,5 +1,5 @@
 import type { IntegrationPlatform } from '../../integrations/integrations.constants.js'
-import type { MessageDirection, MessageStatus } from '../inbox.schemas.js'
+import type { MessageDirection, MessageStatus, MessageContentType } from '../inbox.schemas.js'
 
 export type ChannelRecord = {
   id: string
@@ -52,6 +52,11 @@ export type MessageRecord = {
   direction: MessageDirection
   platform_message_id: string | null
   content: string
+  content_type: MessageContentType
+  storage_path: string | null
+  mime_type: string | null
+  platform_media_id: string | null
+  file_size_bytes: number | null
   status: MessageStatus
   customer_reaction: string | null
   agent_reaction: string | null

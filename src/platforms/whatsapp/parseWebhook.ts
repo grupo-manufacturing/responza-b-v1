@@ -6,8 +6,13 @@ export type WhatsAppInboundMessage = {
   channelDisplayName: string | null
   from: string
   platformMessageId: string
+  contentType: 'text' | 'image'
   content: string
   contactDisplayName: string | null
+  image?: {
+    id: string
+    mimeType: string | null
+  }
 }
 
 export type WhatsAppOutboundReadReceipt = {
@@ -33,14 +38,43 @@ export type WhatsAppOutboundEcho = {
   contactDisplayName: string | null
 }
 
-function messageContent(message: Record<string, unknown>): string {
+function messageContent(message: Record<string, unknown>): {
+  contentType: 'text' | 'image'
+  content: string
+  image?: { id: string; mimeType: string | null }
+} {
   const type = asString(message.type) ?? 'unknown'
-  const textBody = asRecord(message.text)?.body
-  if (typeof textBody === 'string' && textBody.trim().length > 0) {
-    return textBody.trim()
+
+  if (type === 'image') {
+    const image = asRecord(message.image)
+    const mediaId = image !== null ? asString(image.id) : null
+    const caption = image !== null ? asString(image.caption) : null
+    const mimeType = image !== null ? asString(image.mime_type) : null
+
+    if (mediaId !== null) {
+      return {
+        contentType: 'image',
+        content: caption?.trim() ?? '',
+        image: {
+          id: mediaId,
+          mimeType,
+        },
+      }
+    }
   }
 
-  return `(non-text:${type})`
+  const textBody = asRecord(message.text)?.body
+  if (typeof textBody === 'string' && textBody.trim().length > 0) {
+    return {
+      contentType: 'text',
+      content: textBody.trim(),
+    }
+  }
+
+  return {
+    contentType: 'text',
+    content: `(non-text:${type})`,
+  }
 }
 
 function contactNamesByWaId(contacts: unknown): Map<string, string> {
@@ -120,14 +154,18 @@ export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMess
           continue
         }
 
+        const parsed = messageContent(message)
+
         inbound.push({
           phoneNumberId,
           wabaId,
           channelDisplayName,
           from,
           platformMessageId,
-          content: messageContent(message),
+          contentType: parsed.contentType,
+          content: parsed.content,
           contactDisplayName: contactNames.get(from) ?? null,
+          image: parsed.image,
         })
       }
     }
@@ -210,7 +248,7 @@ export function parseWhatsAppOutboundEchoes(body: unknown): WhatsAppOutboundEcho
           channelDisplayName,
           to,
           platformMessageId,
-          content: messageContent(message),
+          content: messageContent(message).content,
           contactDisplayName: contactNames.get(to) ?? null,
         })
       }

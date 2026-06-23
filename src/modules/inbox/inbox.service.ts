@@ -14,9 +14,11 @@ import {
 } from '../integrations/integrations.constants.js'
 import {
   isAllowedReactionEmoji,
+  messageContentTypeToApi,
   messageDirectionToApi,
   messageStatusToApi,
   type ListInboxQuery,
+  type MessageContentType,
   type ReactToMessageBody,
   type SendMessageBody,
 } from './inbox.schemas.js'
@@ -28,6 +30,7 @@ import type {
   ParticipantRecord,
 } from './inbox.repository.js'
 import * as usageService from '../subscription/usage.service.js'
+import { storeInboundWhatsAppImage, resolveMessageMediaUrl } from '../media/media.service.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -43,7 +46,13 @@ export type ReceiveInboundMessageInput = {
   message: {
     platformMessageId: string
     content: string
+    contentType?: MessageContentType
+    image?: {
+      platformMediaId: string
+      mimeType: string | null
+    }
   }
+  accessToken?: string
 }
 
 export type ReceiveOutboundEchoInput = {
@@ -206,7 +215,9 @@ function toParticipantResponse(participant: ParticipantRecord) {
   }
 }
 
-function toMessageResponse(message: MessageRecord) {
+async function toMessageResponse(message: MessageRecord) {
+  const mediaUrl = await resolveMessageMediaUrl(message.storage_path)
+
   return {
     id: message.id,
     organizationId: message.organization_id,
@@ -215,6 +226,9 @@ function toMessageResponse(message: MessageRecord) {
     direction: messageDirectionToApi(message.direction),
     platformMessageId: message.platform_message_id,
     content: message.content,
+    contentType: messageContentTypeToApi(message.content_type),
+    mediaUrl,
+    mimeType: message.mime_type,
     status: messageStatusToApi(message.status),
     customerReaction: message.customer_reaction,
     agentReaction: message.agent_reaction,
@@ -273,7 +287,7 @@ export async function getConversation(auth: AuthContext, conversationId: string)
   return {
     conversation: toConversationResponse(conversation),
     participants: enrichedParticipants.map(toParticipantResponse),
-    messages: messages.map(toMessageResponse),
+    messages: await Promise.all(messages.map((message) => toMessageResponse(message))),
   }
 }
 
@@ -316,7 +330,7 @@ export async function sendMessage(
     })
 
     return {
-      message: toMessageResponse(updated),
+      message: await toMessageResponse(updated),
     }
   } catch (error) {
     const updated = await inboxRepository.updateMessageDeliveryStatus({
@@ -328,7 +342,7 @@ export async function sendMessage(
 
     if (isAppError(error)) {
       throw new AppError(error.statusCode, error.code, error.message, {
-        message: toMessageResponse(updated),
+        message: await toMessageResponse(updated),
       })
     }
 
@@ -415,19 +429,57 @@ export async function reactToMessage(
   })
 
   return {
-    message: toMessageResponse(updated),
+    message: await toMessageResponse(updated),
   }
 }
 
 export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   const { conversation, participant, createdConversation } = await ensureConversationContext(input)
 
+  let contentType: MessageContentType = input.message.contentType ?? 'text'
+  let content = input.message.content
+  let storagePath: string | null = null
+  let mimeType: string | null = null
+  let platformMediaId: string | null = null
+  let fileSizeBytes: number | null = null
+
+  if (
+    contentType === 'image' &&
+    input.message.image !== undefined &&
+    input.accessToken !== undefined &&
+    input.platform === 'whatsapp'
+  ) {
+    const stored = await storeInboundWhatsAppImage({
+      organizationId: input.organizationId,
+      conversationId: conversation.id,
+      platformMessageId: input.message.platformMessageId,
+      platformMediaId: input.message.image.platformMediaId,
+      mimeTypeHint: input.message.image.mimeType,
+      accessToken: input.accessToken,
+    })
+
+    if (stored !== null) {
+      storagePath = stored.storagePath
+      mimeType = stored.mimeType
+      platformMediaId = input.message.image.platformMediaId
+      fileSizeBytes = stored.fileSizeBytes
+    } else if (content.trim().length === 0) {
+      content = '(non-text:image)'
+      contentType = 'text'
+    }
+  }
+
   const message = await inboxRepository.insertInboundMessage({
     organization_id: input.organizationId,
     conversation_id: conversation.id,
     participant_id: participant.id,
     platform_message_id: input.message.platformMessageId,
-    content: input.message.content,
+    content,
+    content_type: contentType,
+    storage_path: storagePath,
+    mime_type: mimeType,
+    platform_media_id: platformMediaId,
+    file_size_bytes: fileSizeBytes,
   })
 
   if (message === null) {
@@ -447,7 +499,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
     return {
       conversation: toConversationResponse(conversation),
       participant: toParticipantResponse(participant),
-      message: toMessageResponse(duplicate),
+      message: await toMessageResponse(duplicate),
       duplicate: true,
     }
   }
@@ -459,7 +511,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   return {
     conversation: toConversationResponse(conversation),
     participant: toParticipantResponse(participant),
-    message: toMessageResponse(message),
+    message: await toMessageResponse(message),
     duplicate: false,
   }
 }
@@ -488,7 +540,7 @@ export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
     return {
       conversation: toConversationResponse(conversation),
       participant: toParticipantResponse(participant),
-      message: toMessageResponse(existing),
+      message: await toMessageResponse(existing),
       duplicate: true,
     }
   }
@@ -500,7 +552,7 @@ export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
   return {
     conversation: toConversationResponse(conversation),
     participant: toParticipantResponse(participant),
-    message: toMessageResponse(message),
+    message: await toMessageResponse(message),
     duplicate: false,
   }
 }

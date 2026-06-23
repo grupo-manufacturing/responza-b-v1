@@ -1,10 +1,10 @@
 import { getSupabaseAdminClient } from '../../../shared/database/index.js'
 import { AppError } from '../../../shared/errors/index.js'
-import type { MessageDirection, MessageStatus } from '../inbox.schemas.js'
+import type { MessageDirection, MessageStatus, MessageContentType } from '../inbox.schemas.js'
 import type { MessageRecord } from './types.js'
 
 const MESSAGE_COLUMNS =
-  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, status, customer_reaction, agent_reaction, created_at'
+  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, content_type, storage_path, mime_type, platform_media_id, file_size_bytes, status, customer_reaction, agent_reaction, created_at'
 
 export async function listMessagesByConversationId(
   organizationId: string,
@@ -165,6 +165,11 @@ export type InsertInboundMessageInput = {
   participant_id: string
   platform_message_id: string
   content: string
+  content_type?: MessageContentType
+  storage_path?: string | null
+  mime_type?: string | null
+  platform_media_id?: string | null
+  file_size_bytes?: number | null
 }
 
 const PENDING_ECHO_MATCH_WINDOW_MS = 60_000
@@ -313,6 +318,11 @@ export async function insertInboundMessage(
       direction: 'inbound',
       platform_message_id: input.platform_message_id,
       content: input.content,
+      content_type: input.content_type ?? 'text',
+      storage_path: input.storage_path ?? null,
+      mime_type: input.mime_type ?? null,
+      platform_media_id: input.platform_media_id ?? null,
+      file_size_bytes: input.file_size_bytes ?? null,
       status: 'sent',
     })
     .select(MESSAGE_COLUMNS)
@@ -449,6 +459,12 @@ function normalizeMessageRecord(row: Record<string, unknown>): MessageRecord {
     direction: row.direction as MessageDirection,
     platform_message_id: (row.platform_message_id as string | null) ?? null,
     content: row.content as string,
+    content_type: (row.content_type as MessageContentType | undefined) ?? 'text',
+    storage_path: (row.storage_path as string | null) ?? null,
+    mime_type: (row.mime_type as string | null) ?? null,
+    platform_media_id: (row.platform_media_id as string | null) ?? null,
+    file_size_bytes:
+      typeof row.file_size_bytes === 'number' ? row.file_size_bytes : null,
     status: row.status as MessageStatus,
     customer_reaction: (row.customer_reaction as string | null) ?? null,
     agent_reaction: (row.agent_reaction as string | null) ?? null,

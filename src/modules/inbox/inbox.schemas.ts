@@ -4,6 +4,7 @@ import { SUPPORTED_PLATFORMS } from '../integrations/integrations.constants.js'
 
 export const MESSAGE_DIRECTION_VALUES = ['inbound', 'outbound'] as const
 export const MESSAGE_STATUS_VALUES = ['pending', 'sent', 'failed', 'read'] as const
+export const MESSAGE_CONTENT_TYPE_VALUES = ['text', 'image', 'video', 'audio', 'document'] as const
 export const MESSAGE_QUICK_EMOJIS = [
   '😀',
   '😂',
@@ -21,6 +22,7 @@ export const MESSAGE_QUICK_EMOJIS = [
 
 export type MessageDirection = (typeof MESSAGE_DIRECTION_VALUES)[number]
 export type MessageStatus = (typeof MESSAGE_STATUS_VALUES)[number]
+export type MessageContentType = (typeof MESSAGE_CONTENT_TYPE_VALUES)[number]
 export type MessageQuickEmoji = (typeof MESSAGE_QUICK_EMOJIS)[number]
 
 const messageReactionEmojiSchema = z.enum(MESSAGE_QUICK_EMOJIS)
@@ -42,6 +44,18 @@ const STATUS_TO_API: Record<MessageStatus, string> = {
   sent: 'sent',
   failed: 'failed',
   read: 'read',
+}
+
+const CONTENT_TYPE_TO_API: Record<MessageContentType, string> = {
+  text: 'text',
+  image: 'image',
+  video: 'video',
+  audio: 'audio',
+  document: 'document',
+}
+
+export function messageContentTypeToApi(contentType: MessageContentType): string {
+  return CONTENT_TYPE_TO_API[contentType]
 }
 
 export function messageDirectionToApi(direction: MessageDirection): string {

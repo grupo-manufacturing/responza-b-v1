@@ -1,12 +1,14 @@
 import { getSupabaseAdminClient } from '../../../shared/database/index.js'
 import { AppError } from '../../../shared/errors/index.js'
 import type { IntegrationPlatform } from '../../integrations/integrations.constants.js'
+import type { MessageContentType } from '../inbox.schemas.js'
 import type {
   ConversationListRecord,
   ConversationRecord,
   ConversationSendContext,
   ListConversationsInput,
 } from './types.js'
+import { formatMessageListPreview } from '../inbox.preview.js'
 
 const CONVERSATION_COLUMNS =
   'id, organization_id, channel_id, external_id, last_message_at, created_at'
@@ -54,7 +56,7 @@ export async function listConversations(
   const conversationIds = records.map((record) => record.id)
   const { data: messageRows, error: messagesError } = await client
     .from('messages')
-    .select('conversation_id, content, created_at')
+    .select('conversation_id, content, content_type, created_at')
     .eq('organization_id', input.organizationId)
     .in('conversation_id', conversationIds)
     .order('created_at', { ascending: false })
@@ -67,7 +69,12 @@ export async function listConversations(
   for (const row of messageRows ?? []) {
     const conversationId = row.conversation_id as string
     if (!lastMessageByConversation.has(conversationId)) {
-      lastMessageByConversation.set(conversationId, row.content as string)
+      const content = row.content as string
+      const contentType = (row.content_type as MessageContentType | undefined) ?? 'text'
+      lastMessageByConversation.set(
+        conversationId,
+        formatMessageListPreview(content, contentType),
+      )
     }
   }
 
