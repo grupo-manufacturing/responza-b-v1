@@ -94,23 +94,6 @@ function isInboundMediaContentType(
   return contentType !== 'text'
 }
 
-function fallbackInboundMediaContent(
-  platform: IntegrationPlatform,
-  contentType: InboundMediaContentType,
-  filename?: string | null,
-): string {
-  const trimmedFilename = filename?.trim() ?? ''
-  if (trimmedFilename.length > 0) {
-    return trimmedFilename
-  }
-
-  if (platform === 'instagram') {
-    return `(attachment:${contentType})`
-  }
-
-  return `(non-text:${contentType})`
-}
-
 async function ensureConversationContext(input: EnsureConversationInput): Promise<{
   conversation: ConversationRecord
   participant: ParticipantRecord
@@ -483,6 +466,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
             platformMessageId: input.message.platformMessageId,
             platformMediaId: input.message.media.platformMediaId,
             mimeTypeHint: input.message.media.mimeType ?? null,
+            filename: input.message.media.filename ?? null,
             accessToken: input.accessToken,
           })
         : input.platform === 'instagram' && input.message.media.mediaUrl !== undefined
@@ -493,6 +477,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
               platformMessageId: input.message.platformMessageId,
               mediaUrl: input.message.media.mediaUrl,
               mimeTypeHint: input.message.media.mimeType ?? null,
+              filename: input.message.media.filename ?? null,
               accessToken: input.accessToken,
             })
           : null
@@ -503,9 +488,8 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       platformMediaId =
         input.message.media.platformMediaId ?? input.message.media.mediaUrl ?? null
       fileSizeBytes = stored.fileSizeBytes
-    } else if (content.trim().length === 0) {
-      content = fallbackInboundMediaContent(input.platform, contentType, input.message.media.filename)
-      contentType = 'text'
+    } else if (content.trim().length === 0 && input.message.media.filename?.trim()) {
+      content = input.message.media.filename.trim()
     }
   }
 

@@ -38,6 +38,28 @@ const INSTAGRAM_ATTACHMENT_TYPES: Record<string, Exclude<InstagramInboundContent
   video: 'video',
   audio: 'audio',
   file: 'document',
+  animated_image: 'image',
+}
+
+function readAttachmentPayloadUrl(payload: Record<string, unknown> | null): string | null {
+  if (payload === null) {
+    return null
+  }
+
+  const directUrl = asString(payload.url)
+  if (directUrl !== null) {
+    return directUrl
+  }
+
+  const nestedPayload = asRecord(payload.payload)
+  if (nestedPayload !== null) {
+    const nestedUrl = asString(nestedPayload.url)
+    if (nestedUrl !== null) {
+      return nestedUrl
+    }
+  }
+
+  return null
 }
 
 function messageContent(message: Record<string, unknown>): {
@@ -53,7 +75,7 @@ function messageContent(message: Record<string, unknown>): {
       const attachmentObj = attachment as Record<string, unknown>
       const type = asString(attachmentObj.type)
       const payload = asRecord(attachmentObj.payload)
-      const url = payload !== null ? asString(payload.url) : null
+      const url = readAttachmentPayloadUrl(payload)
       const contentType = type !== null ? INSTAGRAM_ATTACHMENT_TYPES[type] : undefined
 
       if (contentType !== undefined && url !== null) {

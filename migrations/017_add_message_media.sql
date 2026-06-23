@@ -18,7 +18,29 @@ VALUES (
   'message-media',
   false,
   2097152,
-  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']::text[]
+  ARRAY[
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'video/mp4',
+    'video/3gpp',
+    'video/quicktime',
+    'audio/aac',
+    'audio/mp4',
+    'audio/mpeg',
+    'audio/amr',
+    'audio/ogg',
+    'audio/opus',
+    'text/plain',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ]::text[]
 )
 ON CONFLICT (id) DO UPDATE SET
   file_size_limit = EXCLUDED.file_size_limit,

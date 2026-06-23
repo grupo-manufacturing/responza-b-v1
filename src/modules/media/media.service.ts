@@ -5,8 +5,8 @@ import { createMessageMediaSignedUrl, uploadMessageMedia } from '../../shared/st
 import {
   buildMessageMediaStoragePath,
   extensionForMediaMimeType,
-  isAllowedInboundMediaMimeType,
   MEDIA_MAX_FILE_SIZE_BYTES,
+  resolveStorageMimeType,
   type InboundMediaContentType,
 } from './media.constants.js'
 
@@ -24,18 +24,24 @@ async function persistInboundMediaBuffer(input: {
   buffer: Buffer
   mimeType: string
   mimeTypeHint: string | null
+  filename?: string | null
+  mediaUrl?: string | null
   logContext: Record<string, string>
 }): Promise<StoredInboundMediaResult | null> {
-  const resolvedMimeType =
-    input.mimeType.length > 0 && input.mimeType !== 'application/octet-stream'
-      ? input.mimeType
-      : (input.mimeTypeHint ?? 'application/octet-stream')
+  const resolvedMimeType = resolveStorageMimeType({
+    contentType: input.contentType,
+    downloadedMime: input.mimeType,
+    mimeTypeHint: input.mimeTypeHint,
+    filename: input.filename,
+    mediaUrl: input.mediaUrl,
+  })
 
-  if (!isAllowedInboundMediaMimeType(input.contentType, resolvedMimeType)) {
+  if (resolvedMimeType === null) {
     logger.warn('Skipping unsupported inbound media mime type', {
       ...input.logContext,
       contentType: input.contentType,
-      mimeType: resolvedMimeType,
+      mimeType: input.mimeType,
+      mimeTypeHint: input.mimeTypeHint,
     })
     return null
   }
@@ -77,6 +83,7 @@ export async function storeInboundWhatsAppMedia(input: {
   platformMessageId: string
   platformMediaId: string
   mimeTypeHint: string | null
+  filename?: string | null
   accessToken: string
 }): Promise<StoredInboundMediaResult | null> {
   try {
@@ -103,6 +110,7 @@ export async function storeInboundWhatsAppMedia(input: {
       buffer: downloaded.buffer,
       mimeType: downloaded.mimeType,
       mimeTypeHint: input.mimeTypeHint,
+      filename: input.filename,
       logContext: {
         platform: 'whatsapp',
         platformMessageId: input.platformMessageId,
@@ -126,6 +134,7 @@ export async function storeInboundInstagramMedia(input: {
   platformMessageId: string
   mediaUrl: string
   mimeTypeHint: string | null
+  filename?: string | null
   accessToken: string
 }): Promise<StoredInboundMediaResult | null> {
   try {
@@ -152,6 +161,8 @@ export async function storeInboundInstagramMedia(input: {
       buffer: downloaded.buffer,
       mimeType: downloaded.mimeType,
       mimeTypeHint: input.mimeTypeHint,
+      filename: input.filename,
+      mediaUrl: input.mediaUrl,
       logContext: {
         platform: 'instagram',
         platformMessageId: input.platformMessageId,
