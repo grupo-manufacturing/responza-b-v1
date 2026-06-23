@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { createAiRouter } from '../../modules/ai/ai.routes.js'
 import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
 import { createBusinessRouter } from '../../modules/business/business.routes.js'
+import { createDashboardRouter } from '../../modules/dashboard/dashboard.routes.js'
 import { createConversationsRouter } from '../../modules/inbox/inbox.routes.js'
 import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
 import { createInstagramOAuthRouter } from '../../modules/integrations/oauth/instagram.routes.js'
@@ -36,6 +37,7 @@ export function createAppRouter(): Router {
   const subscriptionGatedRouter = Router()
   subscriptionGatedRouter.use(requireActiveSubscriptionMiddleware)
   subscriptionGatedRouter.use('/business', createBusinessRouter())
+  subscriptionGatedRouter.use('/dashboard', createDashboardRouter())
   subscriptionGatedRouter.use('/leads', createLeadsRouter())
   subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
