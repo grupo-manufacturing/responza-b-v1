@@ -14,6 +14,7 @@ import {
 } from '../integrations/integrations.constants.js'
 import {
   isAllowedReactionEmoji,
+  isMediaContentType,
   messageContentTypeToApi,
   messageDirectionToApi,
   messageStatusToApi,
@@ -21,6 +22,7 @@ import {
   type MessageContentType,
   type ReactToMessageBody,
   type SendMessageBody,
+  type UploadOutboundMediaFields,
 } from './inbox.schemas.js'
 import * as inboxRepository from './inbox.repository.js'
 import type {
@@ -30,7 +32,14 @@ import type {
   ParticipantRecord,
 } from './inbox.repository.js'
 import * as usageService from '../subscription/usage.service.js'
-import { storeInboundInstagramMedia, storeInboundWhatsAppMedia, resolveMessageMediaUrl } from '../media/media.service.js'
+import {
+  assertOutboundMediaStoragePath,
+  resolveMessageMediaUrl,
+  storeInboundInstagramMedia,
+  storeInboundWhatsAppMedia,
+  storeOutboundConversationMedia,
+} from '../media/media.service.js'
+import { messageMediaExists } from '../../shared/storage/index.js'
 import type { InboundMediaContentType } from '../media/media.constants.js'
 
 export type ReceiveInboundMessageInput = {
@@ -304,6 +313,54 @@ export async function getConversation(auth: AuthContext, conversationId: string)
   }
 }
 
+export async function uploadOutboundMedia(
+  auth: AuthContext,
+  conversationId: string,
+  input: UploadOutboundMediaFields,
+  file:
+    | {
+        buffer: Buffer
+        mimetype: string
+        originalname: string
+      }
+    | undefined,
+) {
+  const conversation = await inboxRepository.findConversationSendContext(
+    auth.organizationId,
+    conversationId,
+  )
+
+  if (conversation === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
+  }
+
+  if (conversation.platform === 'indiamart') {
+    throw new AppError(400, 'BAD_REQUEST', 'Media messages are not supported for this platform')
+  }
+
+  if (file === undefined || file.buffer.byteLength === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Media file is required')
+  }
+
+  const stored = await storeOutboundConversationMedia({
+    organizationId: auth.organizationId,
+    conversationId,
+    contentType: input.contentType,
+    buffer: file.buffer,
+    mimeTypeHint: file.mimetype,
+    filename: input.filename ?? file.originalname,
+  })
+
+  return {
+    media: {
+      storagePath: stored.storagePath,
+      mimeType: stored.mimeType,
+      fileSizeBytes: stored.fileSizeBytes,
+      filename: input.filename ?? file.originalname ?? null,
+    },
+  }
+}
+
 export async function sendMessage(
   auth: AuthContext,
   conversationId: string,
@@ -318,10 +375,38 @@ export async function sendMessage(
     throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
   }
 
+  const contentType: MessageContentType = input.contentType ?? 'text'
+  const content = input.content ?? ''
+
+  if (isMediaContentType(contentType)) {
+    if (conversation.platform === 'indiamart') {
+      throw new AppError(400, 'BAD_REQUEST', 'Media messages are not supported for this platform')
+    }
+
+    if (input.storagePath === undefined || input.mimeType === undefined) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Media attachment metadata is required')
+    }
+
+    assertOutboundMediaStoragePath({
+      organizationId: auth.organizationId,
+      conversationId,
+      storagePath: input.storagePath,
+    })
+
+    const mediaExists = await messageMediaExists(input.storagePath)
+    if (!mediaExists) {
+      throw new AppError(404, 'NOT_FOUND', 'Uploaded media was not found')
+    }
+  }
+
   const message = await inboxRepository.insertOutboundMessage({
     organization_id: auth.organizationId,
     conversation_id: conversationId,
-    content: input.content,
+    content,
+    content_type: contentType,
+    storage_path: isMediaContentType(contentType) ? (input.storagePath ?? null) : null,
+    mime_type: isMediaContentType(contentType) ? (input.mimeType ?? null) : null,
+    file_size_bytes: isMediaContentType(contentType) ? (input.fileSizeBytes ?? null) : null,
   })
 
   await usageService.recordBillableConversation(auth.organizationId, conversationId)
@@ -332,7 +417,15 @@ export async function sendMessage(
       organizationId: auth.organizationId,
       integrationId: conversation.integration_id,
       recipientExternalId: conversation.external_id,
-      content: input.content,
+      content,
+      contentType,
+      media: isMediaContentType(contentType)
+        ? {
+            storagePath: input.storagePath!,
+            mimeType: input.mimeType!,
+            filename: input.filename ?? null,
+          }
+        : undefined,
     })
 
     const updated = await inboxRepository.updateMessageDeliveryStatus({
@@ -340,6 +433,7 @@ export async function sendMessage(
       message_id: message.id,
       status: 'sent',
       platform_message_id: delivery.platformMessageId,
+      platform_media_id: delivery.platformMediaId ?? null,
     })
 
     return {
@@ -351,6 +445,7 @@ export async function sendMessage(
       message_id: message.id,
       status: 'failed',
       platform_message_id: null,
+      platform_media_id: null,
     })
 
     if (isAppError(error)) {

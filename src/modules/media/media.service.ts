@@ -1,15 +1,21 @@
+import { randomUUID } from 'node:crypto'
+
 import { fetchInstagramMediaBinary } from '../../platforms/instagram/fetchMedia.js'
 import { fetchWhatsAppMediaBinary } from '../../platforms/whatsapp/fetchMedia.js'
+import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
 import { createMessageMediaSignedUrl, uploadMessageMedia } from '../../shared/storage/index.js'
 import {
   buildMessageMediaStoragePath,
   buildMediaDownloadFilename,
+  buildOutboundMediaStoragePath,
   extensionForMediaMimeType,
+  isStoragePathForConversation,
   MEDIA_MAX_FILE_SIZE_BYTES,
   resolveStorageMimeType,
   sniffMimeTypeFromBuffer,
   type InboundMediaContentType,
+  type OutboundMediaContentType,
 } from './media.constants.js'
 
 export type StoredInboundMediaResult = {
@@ -210,5 +216,69 @@ export async function resolveMessageMediaUrl(
       error: error instanceof Error ? error.message : String(error),
     })
     return null
+  }
+}
+
+export type StoredOutboundMediaResult = {
+  storagePath: string
+  mimeType: string
+  fileSizeBytes: number
+}
+
+export function assertOutboundMediaStoragePath(input: {
+  organizationId: string
+  conversationId: string
+  storagePath: string
+}): void {
+  if (!isStoragePathForConversation(input)) {
+    throw new AppError(403, 'FORBIDDEN', 'Invalid media storage path')
+  }
+}
+
+export async function storeOutboundConversationMedia(input: {
+  organizationId: string
+  conversationId: string
+  contentType: OutboundMediaContentType
+  buffer: Buffer
+  mimeTypeHint: string
+  filename?: string | null
+}): Promise<StoredOutboundMediaResult> {
+  if (input.buffer.byteLength === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Media file is required')
+  }
+
+  if (input.buffer.byteLength > MEDIA_MAX_FILE_SIZE_BYTES) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Media file exceeds the 2 MB limit')
+  }
+
+  const resolvedMimeType = resolveStorageMimeType({
+    contentType: input.contentType,
+    downloadedMime: input.mimeTypeHint,
+    mimeTypeHint: input.mimeTypeHint,
+    filename: input.filename,
+    sniffedMime: sniffMimeTypeFromBuffer(input.buffer),
+  })
+
+  if (resolvedMimeType === null) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Unsupported media file type')
+  }
+
+  const storagePath = buildOutboundMediaStoragePath({
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    uploadId: randomUUID(),
+    extension: extensionForMediaMimeType(input.contentType, resolvedMimeType),
+  })
+
+  await uploadMessageMedia({
+    storagePath,
+    body: input.buffer,
+    mimeType: resolvedMimeType,
+  })
+
+  return {
+    storagePath,
+    mimeType: resolvedMimeType,
+    fileSizeBytes: input.buffer.byteLength,
   }
 }

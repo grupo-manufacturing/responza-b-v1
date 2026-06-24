@@ -9,7 +9,7 @@ export {
   formatInstagramParticipantDisplayName,
   resolveInstagramParticipantProfile,
 } from './resolveParticipantProfile.js'
-export { sendInstagramTextMessage } from './instagram.connector.js'
+export { sendInstagramMediaMessage, sendInstagramTextMessage } from './instagram.connector.js'
 export {
   backfillInstagramParticipantProfiles,
   enrichInstagramConversationList,

@@ -321,3 +321,23 @@ export function buildMessageMediaStoragePath(input: {
   const safePlatformMessageId = input.platformMessageId.replace(/[^a-zA-Z0-9._-]/g, '_')
   return `${input.organizationId}/${input.conversationId}/${safePlatformMessageId}.${input.extension}`
 }
+
+export function buildOutboundMediaStoragePath(input: {
+  organizationId: string
+  conversationId: string
+  uploadId: string
+  extension: string
+}): string {
+  return `${input.organizationId}/${input.conversationId}/${input.uploadId}.${input.extension}`
+}
+
+export function isStoragePathForConversation(input: {
+  organizationId: string
+  conversationId: string
+  storagePath: string
+}): boolean {
+  const expectedPrefix = `${input.organizationId}/${input.conversationId}/`
+  return input.storagePath.startsWith(expectedPrefix) && !input.storagePath.includes('..')
+}
+
+export type OutboundMediaContentType = InboundMediaContentType

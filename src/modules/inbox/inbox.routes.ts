@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
 import {
+  outboundMediaUpload,
   requireIntegrationMiddleware,
   validateRequest,
 } from '../../shared/middleware/index.js'
@@ -10,9 +11,11 @@ import {
   reactMessageParamsSchema,
   reactToMessageBodySchema,
   sendMessageBodySchema,
+  uploadOutboundMediaFieldsSchema,
   type ListInboxQuery,
   type ReactToMessageBody,
   type SendMessageBody,
+  type UploadOutboundMediaFields,
 } from './inbox.schemas.js'
 import * as inboxService from './inbox.service.js'
 
@@ -40,6 +43,31 @@ export function createConversationsRouter(): Router {
       })
       .catch(next)
   })
+
+  router.post(
+    '/:id/messages/media',
+    validateRequest({ params: conversationIdParamsSchema }),
+    outboundMediaUpload.single('file'),
+    (req, res, next) => {
+      const { id } = req.params as { id: string }
+
+      try {
+        const fields = uploadOutboundMediaFieldsSchema.parse({
+          contentType: req.body.contentType,
+          filename: req.body.filename,
+        })
+
+        void inboxService
+          .uploadOutboundMedia(req.auth!, id, fields as UploadOutboundMediaFields, req.file)
+          .then((result) => {
+            res.status(201).json(result)
+          })
+          .catch(next)
+      } catch (error) {
+        next(error)
+      }
+    },
+  )
 
   router.post(
     '/:id/messages',

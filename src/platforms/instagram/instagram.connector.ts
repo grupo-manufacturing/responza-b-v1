@@ -1,11 +1,18 @@
 import { parseGraphApiError, type GraphErrorBody } from '../shared/graphErrors.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import type { SendTextMessageResult } from '../types.js'
+import type { OutboundMediaContentType, SendMessageResult } from '../types.js'
 
 type InstagramMessagesResponse = {
   message_id?: string
   recipient_id?: string
+}
+
+const INSTAGRAM_ATTACHMENT_TYPE: Record<OutboundMediaContentType, string> = {
+  image: 'image',
+  video: 'video',
+  audio: 'audio',
+  document: 'file',
 }
 
 function graphApiBaseUrl(): string {
@@ -18,7 +25,7 @@ export async function sendInstagramTextMessage(input: {
   content: string
   businessAccountId: string
   accessToken: string
-}): Promise<SendTextMessageResult> {
+}): Promise<SendMessageResult> {
   const to = input.to.trim()
   const content = input.content.trim()
   const businessAccountId = input.businessAccountId.trim()
@@ -78,6 +85,57 @@ export async function sendInstagramTextMessage(input: {
     } else {
       throw error
     }
+  }
+
+  const data = (await response.json()) as InstagramMessagesResponse
+  const platformMessageId = data.message_id ?? null
+
+  return {
+    platformMessageId: typeof platformMessageId === 'string' ? platformMessageId : null,
+  }
+}
+
+export async function sendInstagramMediaMessage(input: {
+  to: string
+  contentType: OutboundMediaContentType
+  mediaUrl: string
+  businessAccountId: string
+  accessToken: string
+}): Promise<SendMessageResult> {
+  const to = input.to.trim()
+  const mediaUrl = input.mediaUrl.trim()
+  const businessAccountId = input.businessAccountId.trim()
+  const accessToken = input.accessToken.trim()
+
+  if (to.length === 0 || mediaUrl.length === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Recipient and media URL are required')
+  }
+
+  if (businessAccountId.length === 0 || accessToken.length === 0) {
+    throw new AppError(400, 'BAD_REQUEST', 'Instagram is not configured for sending')
+  }
+
+  const url = `${graphApiBaseUrl()}/${businessAccountId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      recipient: { id: to },
+      message: {
+        attachment: {
+          type: INSTAGRAM_ATTACHMENT_TYPE[input.contentType],
+          payload: { url: mediaUrl },
+        },
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const message = await parseGraphApiError(response, 'Instagram API request failed')
+    throw new AppError(502, 'BAD_REQUEST', message)
   }
 
   const data = (await response.json()) as InstagramMessagesResponse

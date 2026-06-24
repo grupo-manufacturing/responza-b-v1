@@ -50,6 +50,11 @@ export type InsertOutboundMessageInput = {
   organization_id: string
   conversation_id: string
   content: string
+  content_type?: MessageContentType
+  storage_path?: string | null
+  mime_type?: string | null
+  platform_media_id?: string | null
+  file_size_bytes?: number | null
 }
 
 export async function insertOutboundMessage(
@@ -67,6 +72,11 @@ export async function insertOutboundMessage(
       direction: 'outbound',
       platform_message_id: null,
       content: input.content,
+      content_type: input.content_type ?? 'text',
+      storage_path: input.storage_path ?? null,
+      mime_type: input.mime_type ?? null,
+      platform_media_id: input.platform_media_id ?? null,
+      file_size_bytes: input.file_size_bytes ?? null,
       status: 'pending',
     })
     .select(MESSAGE_COLUMNS)
@@ -94,6 +104,7 @@ export type UpdateMessageDeliveryStatusInput = {
   message_id: string
   status: MessageStatus
   platform_message_id?: string | null
+  platform_media_id?: string | null
 }
 
 export async function markOutboundMessageReadByPlatformId(input: {
@@ -141,12 +152,18 @@ export async function updateMessageDeliveryStatus(
   input: UpdateMessageDeliveryStatusInput,
 ): Promise<MessageRecord> {
   const client = getSupabaseAdminClient()
+  const updatePayload: Record<string, unknown> = {
+    status: input.status,
+    platform_message_id: input.platform_message_id ?? null,
+  }
+
+  if (input.platform_media_id !== undefined) {
+    updatePayload.platform_media_id = input.platform_media_id
+  }
+
   const { data, error } = await client
     .from('messages')
-    .update({
-      status: input.status,
-      platform_message_id: input.platform_message_id ?? null,
-    })
+    .update(updatePayload)
     .eq('organization_id', input.organization_id)
     .eq('id', input.message_id)
     .select(MESSAGE_COLUMNS)
