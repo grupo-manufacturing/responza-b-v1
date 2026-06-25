@@ -7,7 +7,6 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
-  AUTH_EMAIL_REDIRECT_URL: z.string().default(''),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
@@ -76,18 +75,4 @@ export function getCorsOrigins(env: Env): string[] {
   return env.CORS_ORIGINS.split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
-}
-
-export function getAuthEmailRedirectUrl(env: Env): string {
-  const configured = env.AUTH_EMAIL_REDIRECT_URL.trim()
-  if (configured.length > 0) {
-    return configured
-  }
-
-  const frontendOrigin = getCorsOrigins(env)[0]
-  if (frontendOrigin === undefined) {
-    throw new Error('CORS_ORIGINS must include the frontend origin for email verification redirects')
-  }
-
-  return `${frontendOrigin}/auth/verify-email`
 }

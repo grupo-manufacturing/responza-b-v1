@@ -1,1 +1,1 @@
-export { getAuthEmailRedirectUrl, getCorsOrigins, loadEnv, type Env } from './env.js'
+export { getCorsOrigins, loadEnv, type Env } from './env.js'

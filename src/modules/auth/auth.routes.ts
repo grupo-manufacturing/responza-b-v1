@@ -5,10 +5,8 @@ import type { AuthSessionPayload } from '../../shared/auth/index.js'
 import * as authService from './auth.service.js'
 import {
   changePasswordBodySchema,
-  googleCallbackBodySchema,
   loginBodySchema,
   registerBodySchema,
-  resendVerificationBodySchema,
   updateProfileBodySchema,
 } from './auth.service.js'
 
@@ -40,29 +38,8 @@ export function createAuthPublicRouter(): Router {
     (req, res, next) => {
       void authService
         .registerOrganization(req.body)
-        .then((result) => {
-          if (result.requiresEmailVerification) {
-            res.status(201).json({
-              requiresEmailVerification: true,
-              email: result.email,
-            })
-            return
-          }
-
-          res.status(201).json(toSessionResponse(result.session))
-        })
-        .catch(next)
-    },
-  )
-
-  router.post(
-    '/resend-verification',
-    validateRequest({ body: resendVerificationBodySchema }),
-    (req, res, next) => {
-      void authService
-        .resendVerificationEmail(req.body)
-        .then(() => {
-          res.status(200).json({ success: true })
+        .then((payload) => {
+          res.status(201).json(toSessionResponse(payload))
         })
         .catch(next)
     },
@@ -76,19 +53,6 @@ export function createAuthPublicRouter(): Router {
       })
       .catch(next)
   })
-
-  router.post(
-    '/google/callback',
-    validateRequest({ body: googleCallbackBodySchema }),
-    (req, res, next) => {
-      void authService
-        .completeGoogleSignIn(req.body)
-        .then((payload) => {
-          res.status(200).json(toSessionResponse(payload))
-        })
-        .catch(next)
-    },
-  )
 
   return router
 }
