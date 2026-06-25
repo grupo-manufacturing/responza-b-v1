@@ -3,7 +3,14 @@ import { Router } from 'express'
 import { validateRequest } from '../../shared/middleware/index.js'
 import type { AuthSessionPayload } from '../../shared/auth/index.js'
 import * as authService from './auth.service.js'
-import { loginBodySchema, registerBodySchema, updateProfileBodySchema, changePasswordBodySchema } from './auth.service.js'
+import {
+  changePasswordBodySchema,
+  googleCallbackBodySchema,
+  loginBodySchema,
+  registerBodySchema,
+  resendVerificationBodySchema,
+  updateProfileBodySchema,
+} from './auth.service.js'
 
 function toSessionResponse(payload: AuthSessionPayload) {
   return {
@@ -33,8 +40,29 @@ export function createAuthPublicRouter(): Router {
     (req, res, next) => {
       void authService
         .registerOrganization(req.body)
-        .then((payload) => {
-          res.status(201).json(toSessionResponse(payload))
+        .then((result) => {
+          if (result.requiresEmailVerification) {
+            res.status(201).json({
+              requiresEmailVerification: true,
+              email: result.email,
+            })
+            return
+          }
+
+          res.status(201).json(toSessionResponse(result.session))
+        })
+        .catch(next)
+    },
+  )
+
+  router.post(
+    '/resend-verification',
+    validateRequest({ body: resendVerificationBodySchema }),
+    (req, res, next) => {
+      void authService
+        .resendVerificationEmail(req.body)
+        .then(() => {
+          res.status(200).json({ success: true })
         })
         .catch(next)
     },
@@ -48,6 +76,19 @@ export function createAuthPublicRouter(): Router {
       })
       .catch(next)
   })
+
+  router.post(
+    '/google/callback',
+    validateRequest({ body: googleCallbackBodySchema }),
+    (req, res, next) => {
+      void authService
+        .completeGoogleSignIn(req.body)
+        .then((payload) => {
+          res.status(200).json(toSessionResponse(payload))
+        })
+        .catch(next)
+    },
+  )
 
   return router
 }
