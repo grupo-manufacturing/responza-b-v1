@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from 'express'
 import { resolveAuthContextFromAccessToken } from '../../modules/auth/auth.service.js'
 import { AppError } from '../errors/index.js'
 
-function extractBearerToken(req: Request): string | null {
+export function extractBearerToken(req: Request): string | null {
   const header = req.header('authorization')
   if (header === undefined) {
     return null

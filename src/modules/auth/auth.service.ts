@@ -58,12 +58,18 @@ export const resendOtpBodySchema = z.object({
   email: emailFieldSchema,
 })
 
+export const oauthCompleteBodySchema = z.object({
+  refreshToken: z.string().min(1),
+  expiresIn: z.number().int().positive().optional(),
+})
+
 export type RegisterBody = z.infer<typeof registerBodySchema>
 export type LoginBody = z.infer<typeof loginBodySchema>
 export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>
 export type ChangePasswordBody = z.infer<typeof changePasswordBodySchema>
 export type VerifyOtpBody = z.infer<typeof verifyOtpBodySchema>
 export type ResendOtpBody = z.infer<typeof resendOtpBodySchema>
+export type OAuthCompleteBody = z.infer<typeof oauthCompleteBodySchema>
 
 export type RegisterPendingPayload = {
   requiresVerification: true
@@ -108,6 +114,26 @@ async function resendSignupOtp(email: string): Promise<void> {
   if (error !== null) {
     throw new AppError(400, 'BAD_REQUEST', error.message)
   }
+}
+
+function resolveOrganizationNameFromUserMetadata(
+  metadata: Record<string, unknown> | undefined,
+  email: string,
+): string {
+  const candidates = [metadata?.organization_name, metadata?.full_name, metadata?.name]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim().slice(0, 160)
+    }
+  }
+
+  const localPart = email.split('@')[0]?.trim()
+  if (localPart !== undefined && localPart.length > 0) {
+    return localPart.slice(0, 160)
+  }
+
+  return 'My Organization'
 }
 
 async function buildSessionPayload(
@@ -261,6 +287,59 @@ export async function resendEmailOtp(input: ResendOtpBody): Promise<void> {
   }
 
   await resendSignupOtp(normalizedEmail)
+}
+
+export async function completeOAuthSession(
+  accessToken: string,
+  input: OAuthCompleteBody,
+): Promise<AuthSessionPayload> {
+  const admin = getSupabaseAdminClient()
+  const { data, error } = await admin.auth.getUser(accessToken)
+
+  if (error !== null || data.user === null) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired access token')
+  }
+
+  const user = data.user
+  const email = user.email?.trim().toLowerCase()
+  if (email === undefined || email.length === 0) {
+    throw new AppError(400, 'BAD_REQUEST', 'Google account did not provide an email address')
+  }
+
+  let organization = await authRepository.findOrganizationById(user.id)
+
+  if (organization === null) {
+    const existingByEmail = await authRepository.findOrganizationByEmail(email)
+    if (existingByEmail !== null && existingByEmail.id !== user.id) {
+      throw new AppError(
+        409,
+        'CONFLICT',
+        'An account with this email already exists. Sign in with email and password instead.',
+      )
+    }
+
+    const organizationName = resolveOrganizationNameFromUserMetadata(
+      user.user_metadata as Record<string, unknown> | undefined,
+      email,
+    )
+
+    organization = await authRepository.createOrganization({
+      id: user.id,
+      email,
+      name: organizationName,
+      emailVerified: true,
+    })
+    await authRepository.createBusinessProfile(organization.id)
+  } else if (!organization.email_verified) {
+    organization = await authRepository.markOrganizationEmailVerified(organization.id)
+  }
+
+  return buildSessionPayload(
+    accessToken,
+    input.refreshToken,
+    input.expiresIn ?? 3600,
+    organization,
+  )
 }
 
 export async function loginOrganization(input: LoginBody): Promise<AuthSessionPayload> {

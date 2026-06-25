@@ -1,11 +1,14 @@
 import { Router } from 'express'
 
+import { AppError } from '../../shared/errors/index.js'
 import { validateRequest } from '../../shared/middleware/index.js'
+import { extractBearerToken } from '../../shared/middleware/authenticate.js'
 import type { AuthSessionPayload } from '../../shared/auth/index.js'
 import * as authService from './auth.service.js'
 import {
   changePasswordBodySchema,
   loginBodySchema,
+  oauthCompleteBodySchema,
   registerBodySchema,
   resendOtpBodySchema,
   updateProfileBodySchema,
@@ -78,6 +81,25 @@ export function createAuthPublicRouter(): Router {
       })
       .catch(next)
   })
+
+  router.post(
+    '/oauth/complete',
+    validateRequest({ body: oauthCompleteBodySchema }),
+    (req, res, next) => {
+      const accessToken = extractBearerToken(req)
+      if (accessToken === null) {
+        next(new AppError(401, 'UNAUTHORIZED', 'Authentication required'))
+        return
+      }
+
+      void authService
+        .completeOAuthSession(accessToken, req.body)
+        .then((payload) => {
+          res.status(200).json(toSessionResponse(payload))
+        })
+        .catch(next)
+    },
+  )
 
   return router
 }
