@@ -8,10 +8,11 @@ export type OrganizationRecord = OrganizationSubscriptionRecord & {
   name: string
   plan: string
   preferred_translation_language: string | null
+  email_verified: boolean
 }
 
 export const ORGANIZATION_COLUMNS =
-  'id, email, name, plan, subscription_status, trial_started_at, trial_ends_at, subscription_period_starts_at, subscription_period_ends_at, preferred_translation_language, razorpay_customer_id, razorpay_subscription_id, conversation_limit'
+  'id, email, name, plan, subscription_status, trial_started_at, trial_ends_at, subscription_period_starts_at, subscription_period_ends_at, preferred_translation_language, razorpay_customer_id, razorpay_subscription_id, conversation_limit, email_verified'
 
 export async function findOrganizationById(organizationId: string): Promise<OrganizationRecord | null> {
   const client = getSupabaseAdminClient()

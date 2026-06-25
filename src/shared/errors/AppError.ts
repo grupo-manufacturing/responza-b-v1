@@ -10,6 +10,7 @@ export type ErrorCode =
   | 'NOT_IMPLEMENTED'
   | 'BILLING_NOT_CONFIGURED'
   | 'CONVERSATION_LIMIT_REACHED'
+  | 'EMAIL_NOT_VERIFIED'
   | 'INTERNAL_ERROR'
 
 export class AppError extends Error {

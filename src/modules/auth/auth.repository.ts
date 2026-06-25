@@ -66,6 +66,7 @@ export async function createOrganization(input: {
   id: string
   email: string
   name: string
+  emailVerified?: boolean
 }): Promise<OrganizationRecord> {
   const env = loadEnv()
   const now = new Date()
@@ -82,6 +83,7 @@ export async function createOrganization(input: {
       subscription_status: 'trialing',
       trial_started_at: now.toISOString(),
       trial_ends_at: trialEndsAt.toISOString(),
+      email_verified: input.emailVerified ?? false,
     })
     .select(ORGANIZATION_COLUMNS)
     .single()
@@ -164,4 +166,23 @@ export async function createBusinessProfile(organizationId: string): Promise<voi
   if (error !== null) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create business details profile')
   }
+}
+
+export async function markOrganizationEmailVerified(organizationId: string): Promise<OrganizationRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('organizations')
+    .update({
+      email_verified: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', organizationId)
+    .select(ORGANIZATION_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to verify organization email')
+  }
+
+  return data as OrganizationRecord
 }

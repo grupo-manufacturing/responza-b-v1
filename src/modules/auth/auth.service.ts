@@ -40,10 +40,26 @@ export const changePasswordBodySchema = z.object({
   newPassword: z.string().min(8).max(128),
 })
 
+export const verifyOtpBodySchema = z.object({
+  email: emailFieldSchema,
+  token: z.string().trim().min(6).max(6),
+})
+
+export const resendOtpBodySchema = z.object({
+  email: emailFieldSchema,
+})
+
 export type RegisterBody = z.infer<typeof registerBodySchema>
 export type LoginBody = z.infer<typeof loginBodySchema>
 export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>
 export type ChangePasswordBody = z.infer<typeof changePasswordBodySchema>
+export type VerifyOtpBody = z.infer<typeof verifyOtpBodySchema>
+export type ResendOtpBody = z.infer<typeof resendOtpBodySchema>
+
+export type RegisterPendingPayload = {
+  requiresVerification: true
+  email: string
+}
 
 function toAuthContext(organization: Pick<OrganizationRecord, 'id' | 'email' | 'name'>): AuthContext {
   return {
@@ -60,6 +76,28 @@ function toOrganizationSummary(organization: OrganizationRecord) {
     name: organization.name,
     plan: organization.plan,
     preferredTranslationLanguage: organization.preferred_translation_language ?? null,
+    emailVerified: organization.email_verified,
+  }
+}
+
+function isSupabaseEmailNotConfirmedError(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('confirm') ||
+    normalized.includes('verified') ||
+    normalized.includes('not confirmed')
+  )
+}
+
+async function resendSignupOtp(email: string): Promise<void> {
+  const authClient = getSupabaseAuthClient()
+  const { error } = await authClient.auth.resend({
+    type: 'signup',
+    email,
+  })
+
+  if (error !== null) {
+    throw new AppError(400, 'BAD_REQUEST', error.message)
   }
 }
 
@@ -108,11 +146,18 @@ export async function resolveAuthContextFromAccessToken(accessToken: string): Pr
   return loadAuthContext(data.user.id)
 }
 
-export async function registerOrganization(input: RegisterBody): Promise<AuthSessionPayload> {
+export async function registerOrganization(
+  input: RegisterBody,
+): Promise<AuthSessionPayload | RegisterPendingPayload> {
   const normalizedEmail = input.email
   const existing = await authRepository.findOrganizationByEmail(normalizedEmail)
   if (existing !== null) {
-    throw new AppError(409, 'CONFLICT', 'An account with this email already exists')
+    if (existing.email_verified) {
+      throw new AppError(409, 'CONFLICT', 'An account with this email already exists')
+    }
+
+    await resendSignupOtp(normalizedEmail)
+    return { requiresVerification: true, email: normalizedEmail }
   }
 
   const authClient = getSupabaseAuthClient()
@@ -128,6 +173,12 @@ export async function registerOrganization(input: RegisterBody): Promise<AuthSes
 
   if (error !== null) {
     if (error.message.toLowerCase().includes('already')) {
+      const pendingOrg = await authRepository.findOrganizationByEmail(normalizedEmail)
+      if (pendingOrg !== null && !pendingOrg.email_verified) {
+        await resendSignupOtp(normalizedEmail)
+        return { requiresVerification: true, email: normalizedEmail }
+      }
+
       throw new AppError(409, 'CONFLICT', 'An account with this email already exists')
     }
 
@@ -138,23 +189,69 @@ export async function registerOrganization(input: RegisterBody): Promise<AuthSes
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create auth user')
   }
 
-  if (data.session === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create session')
-  }
-
   const organization = await authRepository.createOrganization({
     id: data.user.id,
     email: normalizedEmail,
     name: input.name,
+    emailVerified: false,
   })
   await authRepository.createBusinessProfile(organization.id)
+
+  if (data.session !== null) {
+    const verifiedOrganization = await authRepository.markOrganizationEmailVerified(organization.id)
+    return buildSessionPayload(
+      data.session.access_token,
+      data.session.refresh_token,
+      data.session.expires_in ?? 3600,
+      verifiedOrganization,
+    )
+  }
+
+  return { requiresVerification: true, email: normalizedEmail }
+}
+
+export async function verifyEmailOtp(input: VerifyOtpBody): Promise<AuthSessionPayload> {
+  const normalizedEmail = input.email
+  const authClient = getSupabaseAuthClient()
+  const { data, error } = await authClient.auth.verifyOtp({
+    email: normalizedEmail,
+    token: input.token,
+    type: 'email',
+  })
+
+  if (error !== null || data.session === null || data.user === null) {
+    throw new AppError(400, 'BAD_REQUEST', 'Invalid or expired verification code')
+  }
+
+  const organization = await authRepository.findOrganizationById(data.user.id)
+  if (organization === null) {
+    throw new AppError(403, 'FORBIDDEN', 'No account profile found. Please register first.')
+  }
+
+  const verifiedOrganization = organization.email_verified
+    ? organization
+    : await authRepository.markOrganizationEmailVerified(organization.id)
 
   return buildSessionPayload(
     data.session.access_token,
     data.session.refresh_token,
     data.session.expires_in ?? 3600,
-    organization,
+    verifiedOrganization,
   )
+}
+
+export async function resendEmailOtp(input: ResendOtpBody): Promise<void> {
+  const normalizedEmail = input.email
+  const organization = await authRepository.findOrganizationByEmail(normalizedEmail)
+  if (organization === null) {
+    throw new AppError(404, 'NOT_FOUND', 'No account found for this email')
+  }
+
+  if (organization.email_verified) {
+    throw new AppError(400, 'BAD_REQUEST', 'This email is already verified. Please sign in.')
+  }
+
+  await resendSignupOtp(normalizedEmail)
 }
 
 export async function loginOrganization(input: LoginBody): Promise<AuthSessionPayload> {
@@ -166,6 +263,14 @@ export async function loginOrganization(input: LoginBody): Promise<AuthSessionPa
   })
 
   if (error !== null) {
+    if (isSupabaseEmailNotConfirmedError(error.message)) {
+      throw new AppError(
+        403,
+        'EMAIL_NOT_VERIFIED',
+        'Please verify your email first. Check your inbox for the verification code.',
+      )
+    }
+
     throw new AppError(401, 'UNAUTHORIZED', 'Invalid email or password')
   }
 
@@ -176,6 +281,14 @@ export async function loginOrganization(input: LoginBody): Promise<AuthSessionPa
   const organization = await authRepository.findOrganizationById(data.user.id)
   if (organization === null) {
     throw new AppError(403, 'FORBIDDEN', 'No account profile found. Please register first.')
+  }
+
+  if (!organization.email_verified) {
+    throw new AppError(
+      403,
+      'EMAIL_NOT_VERIFIED',
+      'Please verify your email first. Check your inbox for the verification code.',
+    )
   }
 
   return buildSessionPayload(

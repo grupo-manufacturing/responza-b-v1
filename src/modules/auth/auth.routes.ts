@@ -7,7 +7,9 @@ import {
   changePasswordBodySchema,
   loginBodySchema,
   registerBodySchema,
+  resendOtpBodySchema,
   updateProfileBodySchema,
+  verifyOtpBodySchema,
 } from './auth.service.js'
 
 function toSessionResponse(payload: AuthSessionPayload) {
@@ -39,6 +41,11 @@ export function createAuthPublicRouter(): Router {
       void authService
         .registerOrganization(req.body)
         .then((payload) => {
+          if ('requiresVerification' in payload) {
+            res.status(201).json(payload)
+            return
+          }
+
           res.status(201).json(toSessionResponse(payload))
         })
         .catch(next)
@@ -50,6 +57,24 @@ export function createAuthPublicRouter(): Router {
       .loginOrganization(req.body)
       .then((payload) => {
         res.status(200).json(toSessionResponse(payload))
+      })
+      .catch(next)
+  })
+
+  router.post('/verify-otp', validateRequest({ body: verifyOtpBodySchema }), (req, res, next) => {
+    void authService
+      .verifyEmailOtp(req.body)
+      .then((payload) => {
+        res.status(200).json(toSessionResponse(payload))
+      })
+      .catch(next)
+  })
+
+  router.post('/resend-otp', validateRequest({ body: resendOtpBodySchema }), (req, res, next) => {
+    void authService
+      .resendEmailOtp(req.body)
+      .then(() => {
+        res.status(200).json({ success: true })
       })
       .catch(next)
   })
