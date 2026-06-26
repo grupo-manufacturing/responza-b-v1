@@ -42,11 +42,10 @@ export function verifyInstagramWebhookChallenge(query: WebhookVerifyQuery): stri
   return verifyMetaWebhookChallenge(query, WEBHOOK_VERIFY_TOKEN)
 }
 
-export async function processInstagramWebhook(input: {
+export function assertInstagramWebhookSignature(input: {
   rawBody: Buffer
   signatureHeader: string | undefined
-  body: unknown
-}): Promise<void> {
+}): void {
   const { INSTAGRAM_APP_SECRET } = loadEnv()
 
   if (INSTAGRAM_APP_SECRET.length === 0) {
@@ -56,6 +55,14 @@ export async function processInstagramWebhook(input: {
   if (!verifyMetaWebhookSignature(input.rawBody, input.signatureHeader, INSTAGRAM_APP_SECRET, 'sha1')) {
     throw new AppError(403, 'FORBIDDEN', 'Invalid webhook signature')
   }
+}
+
+export async function processInstagramWebhook(input: {
+  rawBody: Buffer
+  signatureHeader: string | undefined
+  body: unknown
+}): Promise<void> {
+  assertInstagramWebhookSignature(input)
 
   const inboundMessages = parseInstagramInboundMessages(input.body)
   const outboundEchoes = parseInstagramOutboundEchoes(input.body)

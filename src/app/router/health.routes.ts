@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
 import { checkDatabaseConnection } from '../../shared/database/index.js'
+import { checkRedisConnection } from '../../shared/queue/index.js'
 
 export const healthRouter = Router()
 
@@ -12,12 +13,17 @@ healthRouter.get('/health', (_req, res) => {
 })
 
 healthRouter.get('/health/ready', async (_req, res) => {
-  const databaseReady = await checkDatabaseConnection()
+  const [databaseReady, redisReady] = await Promise.all([
+    checkDatabaseConnection(),
+    checkRedisConnection(),
+  ])
+  const ready = databaseReady && redisReady
 
-  res.status(databaseReady ? 200 : 503).json({
-    status: databaseReady ? 'ready' : 'not_ready',
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ready' : 'not_ready',
     checks: {
       database: databaseReady ? 'ok' : 'fail',
+      redis: redisReady ? 'ok' : 'fail',
     },
   })
 })

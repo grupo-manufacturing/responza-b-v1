@@ -57,11 +57,10 @@ export function verifyWhatsAppWebhookChallenge(query: WebhookVerifyQuery): strin
   return verifyMetaWebhookChallenge(query, WEBHOOK_VERIFY_TOKEN)
 }
 
-export async function processWhatsAppWebhook(input: {
+export function assertWhatsAppWebhookSignature(input: {
   rawBody: Buffer
   signatureHeader: string | undefined
-  body: unknown
-}): Promise<void> {
+}): void {
   const { META_APP_SECRET } = loadEnv()
 
   if (META_APP_SECRET.length === 0) {
@@ -71,6 +70,14 @@ export async function processWhatsAppWebhook(input: {
   if (!verifyMetaWebhookSignature(input.rawBody, input.signatureHeader, META_APP_SECRET, 'sha256')) {
     throw new AppError(403, 'FORBIDDEN', 'Invalid webhook signature')
   }
+}
+
+export async function processWhatsAppWebhook(input: {
+  rawBody: Buffer
+  signatureHeader: string | undefined
+  body: unknown
+}): Promise<void> {
+  assertWhatsAppWebhookSignature(input)
 
   const inboundMessages = parseWhatsAppInboundMessages(input.body)
   const outboundEchoes = parseWhatsAppOutboundEchoes(input.body)

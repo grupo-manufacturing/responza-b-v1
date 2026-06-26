@@ -1,14 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 
 import { AppError, isAppError } from '../../shared/errors/index.js'
-import {
-  processInstagramWebhook,
-  verifyInstagramWebhookChallenge,
-} from './handlers/instagram.handler.js'
-import {
-  processWhatsAppWebhook,
-  verifyWhatsAppWebhookChallenge,
-} from './handlers/whatsapp.handler.js'
+import { verifyInstagramWebhookChallenge } from './handlers/instagram.handler.js'
+import { verifyWhatsAppWebhookChallenge } from './handlers/whatsapp.handler.js'
+import { enqueueInstagramWebhook, enqueueWhatsAppWebhook } from './webhook.enqueue.js'
 
 type WebhookHandlers = {
   verifyChallenge: (query: {
@@ -16,7 +11,7 @@ type WebhookHandlers = {
     token?: string
     challenge?: string
   }) => string
-  processWebhook: (input: {
+  enqueueWebhook: (input: {
     rawBody: Buffer
     signatureHeader: string | undefined
     body: unknown
@@ -49,7 +44,7 @@ function mountMetaWebhookRoutes(router: Router, path: string, handlers: WebhookH
 
     const signatureValue = req.headers[handlers.signatureHeader]
     void handlers
-      .processWebhook({
+      .enqueueWebhook({
         rawBody,
         signatureHeader: typeof signatureValue === 'string' ? signatureValue : undefined,
         body: req.body,
@@ -73,13 +68,13 @@ export function createMessagingRouter(): Router {
 
   mountMetaWebhookRoutes(router, '/whatsapp', {
     verifyChallenge: verifyWhatsAppWebhookChallenge,
-    processWebhook: processWhatsAppWebhook,
+    enqueueWebhook: enqueueWhatsAppWebhook,
     signatureHeader: 'x-hub-signature-256',
   })
 
   mountMetaWebhookRoutes(router, '/instagram', {
     verifyChallenge: verifyInstagramWebhookChallenge,
-    processWebhook: processInstagramWebhook,
+    enqueueWebhook: enqueueInstagramWebhook,
     signatureHeader: 'x-hub-signature',
   })
 
