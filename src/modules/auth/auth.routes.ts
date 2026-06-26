@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { AppError } from '../../shared/errors/index.js'
 import { validateRequest } from '../../shared/middleware/index.js'
 import { extractBearerToken } from '../../shared/middleware/authenticate.js'
+import { createAuthRateLimiters } from '../../shared/rate-limit/index.js'
 import type { AuthSessionPayload } from '../../shared/auth/index.js'
 import * as authService from './auth.service.js'
 import {
@@ -36,9 +37,11 @@ function toMeResponse(payload: AuthSessionPayload) {
 
 export function createAuthPublicRouter(): Router {
   const router = Router()
+  const rateLimits = createAuthRateLimiters()
 
   router.post(
     '/register',
+    rateLimits.register,
     validateRequest({ body: registerBodySchema }),
     (req, res, next) => {
       void authService
@@ -55,7 +58,7 @@ export function createAuthPublicRouter(): Router {
     },
   )
 
-  router.post('/login', validateRequest({ body: loginBodySchema }), (req, res, next) => {
+  router.post('/login', rateLimits.login, validateRequest({ body: loginBodySchema }), (req, res, next) => {
     void authService
       .loginOrganization(req.body)
       .then((payload) => {
@@ -64,7 +67,11 @@ export function createAuthPublicRouter(): Router {
       .catch(next)
   })
 
-  router.post('/verify-otp', validateRequest({ body: verifyOtpBodySchema }), (req, res, next) => {
+  router.post(
+    '/verify-otp',
+    rateLimits.verifyOtp,
+    validateRequest({ body: verifyOtpBodySchema }),
+    (req, res, next) => {
     void authService
       .verifyEmailOtp(req.body)
       .then((payload) => {
@@ -73,7 +80,11 @@ export function createAuthPublicRouter(): Router {
       .catch(next)
   })
 
-  router.post('/resend-otp', validateRequest({ body: resendOtpBodySchema }), (req, res, next) => {
+  router.post(
+    '/resend-otp',
+    rateLimits.resendOtp,
+    validateRequest({ body: resendOtpBodySchema }),
+    (req, res, next) => {
     void authService
       .resendEmailOtp(req.body)
       .then(() => {

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
 import { validateRequest } from '../../shared/middleware/index.js'
+import { createAiRateLimiter } from '../../shared/rate-limit/index.js'
 import * as aiService from './ai.service.js'
 import {
   conversationAnalyticsBodySchema,
@@ -11,6 +12,8 @@ import {
 
 export function createAiRouter(): Router {
   const router = Router()
+
+  router.use(createAiRateLimiter())
 
   router.post('/rewrite', validateRequest({ body: rewriteBodySchema }), (req, res, next) => {
     void aiService
