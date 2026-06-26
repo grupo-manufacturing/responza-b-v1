@@ -7,6 +7,7 @@ import {
 import { enqueueInboundMediaIngestionJob } from '../../shared/queue/index.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError, isAppError } from '../../shared/errors/index.js'
+import { logger } from '../../shared/logger.js'
 import { getInstagramCredentialsForOrganization } from '../integrations/credentials.service.js'
 import {
   integrationPlatformFromApi,
@@ -168,10 +169,16 @@ async function ensureConversationContext(input: EnsureConversationInput): Promis
   if (input.platform === 'instagram') {
     const credentials = await getInstagramCredentialsForOrganization(input.organizationId)
     if (credentials !== null) {
-      participant = await enrichInstagramParticipantRecord({
+      void enrichInstagramParticipantRecord({
         organizationId: input.organizationId,
         participant,
         accessToken: credentials.accessToken,
+      }).catch((error: unknown) => {
+        logger.warn('[instagram] async participant enrichment failed', {
+          organizationId: input.organizationId,
+          participantId: participant.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
     }
   }

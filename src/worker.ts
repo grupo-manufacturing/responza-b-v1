@@ -110,4 +110,6 @@ process.on('SIGTERM', () => {
   handleShutdownSignal('SIGTERM')
 })
 
-logger.info('Workers started (webhooks + media-ingestion)')
+logger.info(
+  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY})`,
+)

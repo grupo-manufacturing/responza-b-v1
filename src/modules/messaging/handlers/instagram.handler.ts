@@ -6,7 +6,6 @@ import {
 } from '../../../platforms/instagram/parseWebhook.js'
 import { verifyMetaWebhookSignature } from '../../../platforms/shared/webhookSignature.js'
 import { verifyMetaWebhookChallenge, type WebhookVerifyQuery } from '../../../platforms/shared/webhookChallenge.js'
-import { resolveInstagramParticipantPresentation } from '../../../platforms/instagram/enrichment.js'
 import { loadEnv } from '../../../shared/config/index.js'
 import { AppError } from '../../../shared/errors/index.js'
 import { logger } from '../../../shared/logger.js'
@@ -124,12 +123,7 @@ export async function processInstagramWebhook(input: {
         continue
       }
 
-      const fallbackDisplayName = formatInstagramDisplayName(echo.to, null)
-      const presentation = await resolveInstagramParticipantPresentation({
-        platformUserId: echo.to,
-        accessToken: integration.accessToken,
-        fallbackDisplayName,
-      })
+      const displayName = formatInstagramDisplayName(echo.to, null)
 
       await receiveOutboundEcho({
         organizationId: integration.organizationId,
@@ -139,8 +133,8 @@ export async function processInstagramWebhook(input: {
         conversationExternalId: echo.to,
         participant: {
           platformUserId: echo.to,
-          displayName: presentation.displayName,
-          avatarUrl: presentation.avatarUrl,
+          displayName,
+          avatarUrl: null,
         },
         message: {
           platformMessageId: echo.platformMessageId,
@@ -166,15 +160,10 @@ export async function processInstagramWebhook(input: {
         continue
       }
 
-      const fallbackDisplayName = formatInstagramDisplayName(
+      const displayName = formatInstagramDisplayName(
         inbound.from,
         inbound.contactDisplayName,
       )
-      const presentation = await resolveInstagramParticipantPresentation({
-        platformUserId: inbound.from,
-        accessToken: integration.accessToken,
-        fallbackDisplayName,
-      })
 
       await receiveInboundMessage({
         organizationId: integration.organizationId,
@@ -184,8 +173,8 @@ export async function processInstagramWebhook(input: {
         conversationExternalId: inbound.from,
         participant: {
           platformUserId: inbound.from,
-          displayName: presentation.displayName,
-          avatarUrl: presentation.avatarUrl,
+          displayName,
+          avatarUrl: null,
         },
         accessToken: integration.accessToken,
         message: {
