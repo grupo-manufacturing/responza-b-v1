@@ -19,11 +19,20 @@ import {
   messageDirectionToApi,
   messageStatusToApi,
   type ListInboxQuery,
+  type GetConversationQuery,
   type MessageContentType,
   type ReactToMessageBody,
   type SendMessageBody,
   type UploadOutboundMediaFields,
 } from './inbox.schemas.js'
+import {
+  DEFAULT_CONVERSATION_LIST_LIMIT,
+  MAX_CONVERSATION_LIST_LIMIT,
+} from './conversation.pagination.js'
+import {
+  DEFAULT_MESSAGE_PAGE_SIZE,
+  MAX_MESSAGE_PAGE_SIZE,
+} from './message.pagination.js'
 import * as inboxRepository from './inbox.repository.js'
 import type {
   ConversationListRecord,
@@ -259,23 +268,36 @@ async function toMessageResponse(message: MessageRecord) {
 }
 
 export async function listConversations(auth: AuthContext, query: ListInboxQuery) {
-  const conversations = await inboxRepository.listConversations({
+  const limit = Math.min(
+    Math.max(1, query.limit ?? DEFAULT_CONVERSATION_LIST_LIMIT),
+    MAX_CONVERSATION_LIST_LIMIT,
+  )
+
+  const result = await inboxRepository.listConversations({
     organizationId: auth.organizationId,
     platform:
       query.platform !== undefined ? integrationPlatformFromApi(query.platform) : undefined,
+    limit,
+    cursor: query.cursor,
   })
 
   const enrichedConversations = await enrichInstagramConversationList(
     auth.organizationId,
-    conversations,
+    result.conversations,
   )
 
   return {
     conversations: enrichedConversations.map(toConversationListItem),
+    nextCursor: result.nextCursor,
+    hasMore: result.hasMore,
   }
 }
 
-export async function getConversation(auth: AuthContext, conversationId: string) {
+export async function getConversation(
+  auth: AuthContext,
+  conversationId: string,
+  query: GetConversationQuery = {},
+) {
   const conversation = await inboxRepository.findConversationSendContext(
     auth.organizationId,
     conversationId,
@@ -285,9 +307,19 @@ export async function getConversation(auth: AuthContext, conversationId: string)
     throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
   }
 
-  const [participants, messages] = await Promise.all([
+  const messageLimit = Math.min(
+    Math.max(1, query.messageLimit ?? DEFAULT_MESSAGE_PAGE_SIZE),
+    MAX_MESSAGE_PAGE_SIZE,
+  )
+
+  const [participants, messageResult] = await Promise.all([
     inboxRepository.listParticipantsByConversationId(auth.organizationId, conversationId),
-    inboxRepository.listMessagesByConversationId(auth.organizationId, conversationId),
+    inboxRepository.listMessagesForConversation({
+      organization_id: auth.organizationId,
+      conversation_id: conversationId,
+      limit: messageLimit,
+      before: query.before,
+    }),
   ])
 
   let enrichedParticipants = participants
@@ -309,7 +341,9 @@ export async function getConversation(auth: AuthContext, conversationId: string)
   return {
     conversation: toConversationResponse(conversation),
     participants: enrichedParticipants.map(toParticipantResponse),
-    messages: await Promise.all(messages.map((message) => toMessageResponse(message))),
+    messages: await Promise.all(messageResult.messages.map((message) => toMessageResponse(message))),
+    messagesNextCursor: messageResult.nextCursor,
+    hasMoreMessages: messageResult.hasMore,
   }
 }
 

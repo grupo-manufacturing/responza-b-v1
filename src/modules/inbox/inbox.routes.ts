@@ -7,11 +7,13 @@ import {
 } from '../../shared/middleware/index.js'
 import {
   conversationIdParamsSchema,
+  getConversationQuerySchema,
   listInboxQuerySchema,
   reactMessageParamsSchema,
   reactToMessageBodySchema,
   sendMessageBodySchema,
   uploadOutboundMediaFieldsSchema,
+  type GetConversationQuery,
   type ListInboxQuery,
   type ReactToMessageBody,
   type SendMessageBody,
@@ -33,16 +35,20 @@ export function createConversationsRouter(): Router {
       .catch(next)
   })
 
-  router.get('/:id', validateRequest({ params: conversationIdParamsSchema }), (req, res, next) => {
-    const { id } = req.params as { id: string }
+  router.get(
+    '/:id',
+    validateRequest({ params: conversationIdParamsSchema, query: getConversationQuerySchema }),
+    (req, res, next) => {
+      const { id } = req.params as { id: string }
 
-    void inboxService
-      .getConversation(req.auth!, id)
-      .then((result) => {
-        res.status(200).json(result)
-      })
-      .catch(next)
-  })
+      void inboxService
+        .getConversation(req.auth!, id, req.query as unknown as GetConversationQuery)
+        .then((result) => {
+          res.status(200).json(result)
+        })
+        .catch(next)
+    },
+  )
 
   router.post(
     '/:id/messages/media',

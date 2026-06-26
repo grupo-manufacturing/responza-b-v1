@@ -66,4 +66,25 @@ export type MessageRecord = {
 export type ListConversationsInput = {
   organizationId: string
   platform?: IntegrationPlatform
+  limit?: number
+  cursor?: string
+}
+
+export type ListConversationsResult = {
+  conversations: ConversationListRecord[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export type ListMessagesInput = {
+  organization_id: string
+  conversation_id: string
+  limit: number
+  before?: string
+}
+
+export type ListMessagesResult = {
+  messages: MessageRecord[]
+  nextCursor: string | null
+  hasMore: boolean
 }

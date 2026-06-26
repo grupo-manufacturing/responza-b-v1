@@ -163,7 +163,7 @@ export async function enrichInstagramConversationList(
 }
 
 export async function backfillInstagramParticipantProfiles(organizationId: string): Promise<void> {
-  const conversations = await inboxRepository.listConversations({
+  const { conversations } = await inboxRepository.listConversations({
     organizationId,
     platform: 'instagram',
   })

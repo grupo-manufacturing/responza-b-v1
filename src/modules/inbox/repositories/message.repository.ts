@@ -1,7 +1,14 @@
 import { getSupabaseAdminClient } from '../../../shared/database/index.js'
 import { AppError } from '../../../shared/errors/index.js'
 import type { MessageDirection, MessageStatus, MessageContentType } from '../inbox.schemas.js'
-import type { MessageRecord } from './types.js'
+import {
+  decodeMessageListCursor,
+  encodeMessageListCursor,
+  MAX_MESSAGE_PAGE_SIZE,
+  messageListBeforeCursorFilter,
+} from '../message.pagination.js'
+import { touchConversationOnNewMessage } from './conversation.repository.js'
+import type { ListMessagesInput, ListMessagesResult, MessageRecord } from './types.js'
 
 const MESSAGE_COLUMNS =
   'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, content_type, storage_path, mime_type, platform_media_id, file_size_bytes, status, customer_reaction, agent_reaction, created_at'
@@ -25,25 +32,80 @@ export async function listMessagesByConversationId(
   return (data ?? []).map(normalizeMessageRecord)
 }
 
-export async function listRecentMessagesForConversation(input: {
-  organization_id: string
-  conversation_id: string
-  limit: number
-}): Promise<MessageRecord[]> {
+export async function listMessagesForConversation(
+  input: ListMessagesInput,
+): Promise<ListMessagesResult> {
+  const pageSize = Math.min(Math.max(1, input.limit), MAX_MESSAGE_PAGE_SIZE)
+
+  if (input.before !== undefined) {
+    const decoded = decodeMessageListCursor(input.before)
+    if (decoded === null) {
+      throw new AppError(400, 'BAD_REQUEST', 'Invalid message cursor')
+    }
+  }
+
   const client = getSupabaseAdminClient()
-  const { data, error } = await client
+
+  let query = client
     .from('messages')
     .select(MESSAGE_COLUMNS)
     .eq('organization_id', input.organization_id)
     .eq('conversation_id', input.conversation_id)
     .order('created_at', { ascending: false })
-    .limit(input.limit)
+    .order('id', { ascending: false })
 
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load recent messages')
+  if (input.before !== undefined) {
+    const decoded = decodeMessageListCursor(input.before)
+    if (decoded !== null) {
+      query = query.or(messageListBeforeCursorFilter(decoded))
+    }
   }
 
-  return (data ?? []).map(normalizeMessageRecord).reverse()
+  const { data, error } = await query.limit(pageSize + 1)
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list messages')
+  }
+
+  let messages = (data ?? []).map(normalizeMessageRecord)
+
+  let hasMore = false
+  let nextCursor: string | null = null
+
+  if (messages.length > pageSize) {
+    hasMore = true
+    messages = messages.slice(0, pageSize)
+  }
+
+  messages.reverse()
+
+  const oldestMessage = messages[0]
+  if (hasMore && oldestMessage !== undefined) {
+    nextCursor = encodeMessageListCursor({
+      createdAt: oldestMessage.created_at,
+      id: oldestMessage.id,
+    })
+  }
+
+  return {
+    messages,
+    nextCursor,
+    hasMore,
+  }
+}
+
+export async function listRecentMessagesForConversation(input: {
+  organization_id: string
+  conversation_id: string
+  limit: number
+}): Promise<MessageRecord[]> {
+  const result = await listMessagesForConversation({
+    organization_id: input.organization_id,
+    conversation_id: input.conversation_id,
+    limit: input.limit,
+  })
+
+  return result.messages
 }
 
 export type InsertOutboundMessageInput = {
@@ -61,7 +123,6 @@ export async function insertOutboundMessage(
   input: InsertOutboundMessageInput,
 ): Promise<MessageRecord> {
   const client = getSupabaseAdminClient()
-  const now = new Date().toISOString()
 
   const { data, error } = await client
     .from('messages')
@@ -86,17 +147,17 @@ export async function insertOutboundMessage(
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to send message')
   }
 
-  const { error: conversationError } = await client
-    .from('conversations')
-    .update({ last_message_at: now })
-    .eq('organization_id', input.organization_id)
-    .eq('id', input.conversation_id)
+  const message = normalizeMessageRecord(data)
+  await touchConversationOnNewMessage({
+    organization_id: message.organization_id,
+    conversation_id: message.conversation_id,
+    message_at: message.created_at,
+    content: message.content,
+    content_type: message.content_type,
+    direction: message.direction,
+  })
 
-  if (conversationError !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
-  }
-
-  return normalizeMessageRecord(data)
+  return message
 }
 
 export type UpdateMessageDeliveryStatusInput = {
@@ -279,7 +340,6 @@ export async function insertOutboundEchoMessage(
   }
 
   const client = getSupabaseAdminClient()
-  const now = new Date().toISOString()
 
   const { data, error } = await client
     .from('messages')
@@ -307,24 +367,23 @@ export async function insertOutboundEchoMessage(
     return null
   }
 
-  const { error: conversationError } = await client
-    .from('conversations')
-    .update({ last_message_at: now })
-    .eq('organization_id', input.organization_id)
-    .eq('id', input.conversation_id)
+  const message = normalizeMessageRecord(data)
+  await touchConversationOnNewMessage({
+    organization_id: message.organization_id,
+    conversation_id: message.conversation_id,
+    message_at: message.created_at,
+    content: message.content,
+    content_type: message.content_type,
+    direction: message.direction,
+  })
 
-  if (conversationError !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
-  }
-
-  return normalizeMessageRecord(data)
+  return message
 }
 
 export async function insertInboundMessage(
   input: InsertInboundMessageInput,
 ): Promise<MessageRecord | null> {
   const client = getSupabaseAdminClient()
-  const now = new Date().toISOString()
 
   const { data, error } = await client
     .from('messages')
@@ -357,17 +416,17 @@ export async function insertInboundMessage(
     return null
   }
 
-  const { error: conversationError } = await client
-    .from('conversations')
-    .update({ last_message_at: now })
-    .eq('organization_id', input.organization_id)
-    .eq('id', input.conversation_id)
+  const message = normalizeMessageRecord(data)
+  await touchConversationOnNewMessage({
+    organization_id: message.organization_id,
+    conversation_id: message.conversation_id,
+    message_at: message.created_at,
+    content: message.content,
+    content_type: message.content_type,
+    direction: message.direction,
+  })
 
-  if (conversationError !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
-  }
-
-  return normalizeMessageRecord(data)
+  return message
 }
 
 export async function findMessageById(input: {

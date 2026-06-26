@@ -121,10 +121,17 @@ export function messageStatusToApi(status: MessageStatus): string {
 
 export const listInboxQuerySchema = z.object({
   platform: apiPlatformSchema.optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+  cursor: z.string().trim().min(1).optional(),
 })
 
 export const conversationIdParamsSchema = z.object({
   id: z.string().uuid(),
+})
+
+export const getConversationQuerySchema = z.object({
+  messageLimit: z.coerce.number().int().positive().max(100).optional(),
+  before: z.string().trim().min(1).optional(),
 })
 
 export const reactMessageParamsSchema = conversationIdParamsSchema.extend({
@@ -136,6 +143,7 @@ export const reactToMessageBodySchema = z.object({
 })
 
 export type ListInboxQuery = z.infer<typeof listInboxQuerySchema>
+export type GetConversationQuery = z.infer<typeof getConversationQuerySchema>
 export type SendMessageBody = z.infer<typeof sendMessageBodySchema>
 export type UploadOutboundMediaFields = z.infer<typeof uploadOutboundMediaFieldsSchema>
 export type ReactToMessageBody = z.infer<typeof reactToMessageBodySchema>

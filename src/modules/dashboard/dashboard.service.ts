@@ -212,7 +212,7 @@ function buildConversationQueues(
 export async function getDashboard(auth: AuthContext): Promise<DashboardResponse> {
   const responseWindowStart = subtractDays(new Date(), DASHBOARD_RESPONSE_TIME_WINDOW_DAYS)
 
-  const [conversations, leads, responseTimeMessages] = await Promise.all([
+  const [conversationResult, leads, responseTimeMessages] = await Promise.all([
     inboxRepository.listConversations({ organizationId: auth.organizationId }),
     dashboardRepository.listFollowUpLeads({
       organizationId: auth.organizationId,
@@ -224,6 +224,8 @@ export async function getDashboard(auth: AuthContext): Promise<DashboardResponse
       responseWindowStart.toISOString(),
     ),
   ])
+
+  const conversations = conversationResult.conversations
 
   const conversationIds = conversations.map((conversation) => conversation.id)
   const latestMessages = await dashboardRepository.fetchLatestMessageSnapshots(

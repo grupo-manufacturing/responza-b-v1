@@ -1,28 +1,49 @@
 import { getSupabaseAdminClient } from '../../../shared/database/index.js'
 import { AppError } from '../../../shared/errors/index.js'
 import type { IntegrationPlatform } from '../../integrations/integrations.constants.js'
-import type { MessageContentType } from '../inbox.schemas.js'
+import type { MessageContentType, MessageDirection } from '../inbox.schemas.js'
+import {
+  conversationListCursorFilter,
+  decodeConversationListCursor,
+  encodeConversationListCursor,
+  MAX_CONVERSATION_LIST_LIMIT,
+} from '../conversation.pagination.js'
+import { formatMessageListPreview } from '../inbox.preview.js'
 import type {
   ConversationListRecord,
   ConversationRecord,
   ConversationSendContext,
   ListConversationsInput,
+  ListConversationsResult,
 } from './types.js'
-import { formatMessageListPreview } from '../inbox.preview.js'
 
 const CONVERSATION_COLUMNS =
   'id, organization_id, channel_id, external_id, last_message_at, created_at'
 
+const CONVERSATION_LIST_COLUMNS =
+  'id, organization_id, channel_id, external_id, last_message_at, last_message_preview, last_message_direction, created_at'
+
 export async function listConversations(
   input: ListConversationsInput,
-): Promise<ConversationListRecord[]> {
+): Promise<ListConversationsResult> {
   const client = getSupabaseAdminClient()
+  const paginate = input.limit !== undefined
+  const pageSize = paginate
+    ? Math.min(Math.max(1, input.limit ?? 1), MAX_CONVERSATION_LIST_LIMIT)
+    : null
+
+  if (input.cursor !== undefined) {
+    const decoded = decodeConversationListCursor(input.cursor)
+    if (decoded === null) {
+      throw new AppError(400, 'BAD_REQUEST', 'Invalid conversation cursor')
+    }
+  }
 
   let query = client
     .from('conversations')
     .select(
       `
-      ${CONVERSATION_COLUMNS},
+      ${CONVERSATION_LIST_COLUMNS},
       channels!inner (
         platform,
         display_name
@@ -37,9 +58,21 @@ export async function listConversations(
     )
     .eq('organization_id', input.organizationId)
     .order('last_message_at', { ascending: false })
+    .order('id', { ascending: false })
 
   if (input.platform !== undefined) {
     query = query.eq('channels.platform', input.platform)
+  }
+
+  if (input.cursor !== undefined) {
+    const decoded = decodeConversationListCursor(input.cursor)
+    if (decoded !== null) {
+      query = query.or(conversationListCursorFilter(decoded))
+    }
+  }
+
+  if (pageSize !== null) {
+    query = query.limit(pageSize + 1)
   }
 
   const { data, error } = await query
@@ -48,40 +81,28 @@ export async function listConversations(
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list conversations')
   }
 
-  const records = (data ?? []).map(normalizeConversationListRecord)
-  if (records.length === 0) {
-    return records
-  }
+  let conversations = (data ?? []).map(normalizeConversationListRecord)
 
-  const conversationIds = records.map((record) => record.id)
-  const { data: messageRows, error: messagesError } = await client
-    .from('messages')
-    .select('conversation_id, content, content_type, created_at')
-    .eq('organization_id', input.organizationId)
-    .in('conversation_id', conversationIds)
-    .order('created_at', { ascending: false })
+  let hasMore = false
+  let nextCursor: string | null = null
 
-  if (messagesError !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list conversations')
-  }
-
-  const lastMessageByConversation = new Map<string, string>()
-  for (const row of messageRows ?? []) {
-    const conversationId = row.conversation_id as string
-    if (!lastMessageByConversation.has(conversationId)) {
-      const content = row.content as string
-      const contentType = (row.content_type as MessageContentType | undefined) ?? 'text'
-      lastMessageByConversation.set(
-        conversationId,
-        formatMessageListPreview(content, contentType),
-      )
+  if (pageSize !== null && conversations.length > pageSize) {
+    hasMore = true
+    conversations = conversations.slice(0, pageSize)
+    const lastConversation = conversations[conversations.length - 1]
+    if (lastConversation !== undefined) {
+      nextCursor = encodeConversationListCursor({
+        lastMessageAt: lastConversation.last_message_at,
+        id: lastConversation.id,
+      })
     }
   }
 
-  return records.map((record) => ({
-    ...record,
-    last_message_content: lastMessageByConversation.get(record.id) ?? null,
-  }))
+  return {
+    conversations,
+    nextCursor,
+    hasMore,
+  }
 }
 
 export async function findConversationSendContext(
@@ -184,6 +205,37 @@ export async function insertConversation(
   return normalizeConversationRecord(data)
 }
 
+export type TouchConversationOnNewMessageInput = {
+  organization_id: string
+  conversation_id: string
+  message_at: string
+  content: string
+  content_type: MessageContentType
+  direction: MessageDirection
+}
+
+export async function touchConversationOnNewMessage(
+  input: TouchConversationOnNewMessageInput,
+): Promise<void> {
+  const client = getSupabaseAdminClient()
+  const preview = formatMessageListPreview(input.content, input.content_type)
+
+  const { error } = await client
+    .from('conversations')
+    .update({
+      last_message_at: input.message_at,
+      last_message_preview: preview,
+      last_message_direction: input.direction,
+    })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.conversation_id)
+    .lte('last_message_at', input.message_at)
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update conversation')
+  }
+}
+
 function normalizeConversationRecord(row: Record<string, unknown>): ConversationRecord {
   return {
     id: row.id as string,
@@ -232,6 +284,6 @@ function normalizeConversationListRecord(row: Record<string, unknown>): Conversa
     contact_platform_user_id: primaryParticipant?.platform_user_id ?? null,
     contact_display_name: primaryParticipant?.display_name ?? null,
     contact_avatar_url: primaryParticipant?.avatar_url ?? null,
-    last_message_content: null,
+    last_message_content: (row.last_message_preview as string | null) ?? null,
   }
 }
