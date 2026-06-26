@@ -151,6 +151,15 @@ export async function processAiQueueJob(
   options: { markFailed: boolean },
 ): Promise<void> {
   const ttlSeconds = jobTtlSeconds()
+  const existing = await getAiJobRecord(data.organizationId, data.jobId)
+
+  if (existing?.status === 'completed') {
+    return
+  }
+
+  if (existing?.status === 'failed') {
+    return
+  }
 
   try {
     const result = await executeAiQueueJob(data)

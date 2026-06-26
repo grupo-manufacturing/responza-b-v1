@@ -1,6 +1,7 @@
 import { Queue } from 'bullmq'
 
 import { getRedisConnectionOptions } from '../redis/client.js'
+import { webhookDefaultJobOptions } from './queue.options.js'
 
 export const WEBHOOK_QUEUE_NAME = 'webhooks'
 
@@ -30,15 +31,7 @@ export function getWebhookQueue(): Queue {
 
   webhookQueue = new Queue(WEBHOOK_QUEUE_NAME, {
     connection: getRedisConnectionOptions(),
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 1000,
-      },
-      removeOnComplete: 1000,
-      removeOnFail: 5000,
-    },
+    defaultJobOptions: webhookDefaultJobOptions(),
   })
 
   return webhookQueue

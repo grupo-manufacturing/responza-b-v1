@@ -24,6 +24,11 @@ import {
   type InstagramWebhookJobData,
   type WhatsAppWebhookJobData,
 } from './shared/queue/webhook.queue.js'
+import {
+  attachWorkerLifecycleLogs,
+  isQueueJobLastAttempt,
+  withJobTimeout,
+} from './shared/queue/worker.utils.js'
 import { closeRedisConnection, getRedisConnectionOptions } from './shared/redis/index.js'
 
 const env = loadEnv()
@@ -33,19 +38,25 @@ let shuttingDown = false
 const webhookWorker = new Worker(
   WEBHOOK_QUEUE_NAME,
   async (job) => {
-    if (job.name === WEBHOOK_JOB_NAMES.whatsapp) {
-      await processWhatsAppWebhookJob(job.data as WhatsAppWebhookJobData)
-      logger.info(`WhatsApp webhook job processed: ${job.id ?? 'unknown'}`)
-      return
-    }
+    await withJobTimeout(
+      env.WEBHOOK_JOB_TIMEOUT_MS,
+      async () => {
+        if (job.name === WEBHOOK_JOB_NAMES.whatsapp) {
+          await processWhatsAppWebhookJob(job.data as WhatsAppWebhookJobData)
+          logger.info(`WhatsApp webhook job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
 
-    if (job.name === WEBHOOK_JOB_NAMES.instagram) {
-      await processInstagramWebhookJob(job.data as InstagramWebhookJobData)
-      logger.info(`Instagram webhook job processed: ${job.id ?? 'unknown'}`)
-      return
-    }
+        if (job.name === WEBHOOK_JOB_NAMES.instagram) {
+          await processInstagramWebhookJob(job.data as InstagramWebhookJobData)
+          logger.info(`Instagram webhook job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
 
-    throw new Error(`Unhandled webhook job type: ${job.name}`)
+        throw new Error(`Unhandled webhook job type: ${job.name}`)
+      },
+      `Webhook job timed out after ${env.WEBHOOK_JOB_TIMEOUT_MS}ms`,
+    )
   },
   {
     connection: getRedisConnectionOptions(),
@@ -56,13 +67,19 @@ const webhookWorker = new Worker(
 const mediaWorker = new Worker(
   MEDIA_QUEUE_NAME,
   async (job) => {
-    if (job.name === MEDIA_JOB_NAMES.ingest) {
-      await processInboundMediaIngestionJob(job.data as InboundMediaIngestionJobData)
-      logger.info(`Media ingestion job processed: ${job.id ?? 'unknown'}`)
-      return
-    }
+    await withJobTimeout(
+      env.MEDIA_JOB_TIMEOUT_MS,
+      async () => {
+        if (job.name === MEDIA_JOB_NAMES.ingest) {
+          await processInboundMediaIngestionJob(job.data as InboundMediaIngestionJobData)
+          logger.info(`Media ingestion job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
 
-    throw new Error(`Unhandled media job type: ${job.name}`)
+        throw new Error(`Unhandled media job type: ${job.name}`)
+      },
+      `Media ingestion job timed out after ${env.MEDIA_JOB_TIMEOUT_MS}ms`,
+    )
   },
   {
     connection: getRedisConnectionOptions(),
@@ -73,15 +90,21 @@ const mediaWorker = new Worker(
 const aiWorker = new Worker(
   AI_QUEUE_NAME,
   async (job) => {
-    if (job.name === AI_JOB_NAMES.run) {
-      const maxAttempts = job.opts.attempts ?? 1
-      const isLastAttempt = job.attemptsMade >= maxAttempts
-      await processAiQueueJob(job.data as AiQueueJobData, { markFailed: isLastAttempt })
-      logger.info(`AI job processed: ${job.id ?? 'unknown'}`)
-      return
-    }
+    await withJobTimeout(
+      env.AI_JOB_TIMEOUT_MS,
+      async () => {
+        if (job.name === AI_JOB_NAMES.run) {
+          await processAiQueueJob(job.data as AiQueueJobData, {
+            markFailed: isQueueJobLastAttempt(job),
+          })
+          logger.info(`AI job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
 
-    throw new Error(`Unhandled AI job type: ${job.name}`)
+        throw new Error(`Unhandled AI job type: ${job.name}`)
+      },
+      `AI job timed out after ${env.AI_JOB_TIMEOUT_MS}ms`,
+    )
   },
   {
     connection: getRedisConnectionOptions(),
@@ -89,20 +112,9 @@ const aiWorker = new Worker(
   },
 )
 
-function attachWorkerFailureLogs(worker: Worker, queueName: string): void {
-  worker.on('failed', (job, error) => {
-    logger.warn('Worker job failed', {
-      queue: queueName,
-      jobId: job?.id ?? null,
-      jobName: job?.name ?? null,
-      error: error.message,
-    })
-  })
-}
-
-attachWorkerFailureLogs(webhookWorker, WEBHOOK_QUEUE_NAME)
-attachWorkerFailureLogs(mediaWorker, MEDIA_QUEUE_NAME)
-attachWorkerFailureLogs(aiWorker, AI_QUEUE_NAME)
+attachWorkerLifecycleLogs(webhookWorker, WEBHOOK_QUEUE_NAME)
+attachWorkerLifecycleLogs(mediaWorker, MEDIA_QUEUE_NAME)
+attachWorkerLifecycleLogs(aiWorker, AI_QUEUE_NAME)
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) {

@@ -3,6 +3,8 @@ import { Queue } from 'bullmq'
 import type { IntegrationPlatform } from '../../modules/integrations/integrations.constants.js'
 import type { InboundMediaContentType } from '../../modules/media/media.constants.js'
 import { getRedisConnectionOptions } from '../redis/client.js'
+import { mediaDefaultJobOptions } from './queue.options.js'
+import { isDuplicateQueueJobError } from './worker.utils.js'
 
 export const MEDIA_QUEUE_NAME = 'media-ingestion'
 
@@ -33,15 +35,7 @@ export function getMediaQueue(): Queue {
 
   mediaQueue = new Queue(MEDIA_QUEUE_NAME, {
     connection: getRedisConnectionOptions(),
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 1000,
-      },
-      removeOnComplete: 1000,
-      removeOnFail: 5000,
-    },
+    defaultJobOptions: mediaDefaultJobOptions(),
   })
 
   return mediaQueue
@@ -57,7 +51,7 @@ export async function enqueueInboundMediaIngestionJob(
       jobId: `ingest-media-${data.messageId}`,
     })
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Job already exists')) {
+    if (isDuplicateQueueJobError(error)) {
       return
     }
 

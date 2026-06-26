@@ -656,6 +656,26 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       throw new AppError(500, 'INTERNAL_ERROR', 'Failed to receive message')
     }
 
+    if (
+      duplicate.storage_path === null &&
+      pendingMediaIngestion !== null &&
+      input.accessToken !== undefined
+    ) {
+      await enqueueInboundMediaIngestionJob({
+        organizationId: input.organizationId,
+        conversationId: conversation.id,
+        messageId: duplicate.id,
+        platform: pendingMediaIngestion.platform,
+        contentType: pendingMediaIngestion.contentType,
+        platformMessageId: input.message.platformMessageId,
+        accessToken: input.accessToken,
+        platformMediaId: pendingMediaIngestion.platformMediaId,
+        mediaUrl: pendingMediaIngestion.mediaUrl,
+        mimeTypeHint: pendingMediaIngestion.mimeTypeHint,
+        filename: pendingMediaIngestion.filename ?? null,
+      })
+    }
+
     return {
       conversation: toConversationResponse(conversation),
       participant: toParticipantResponse(participant),

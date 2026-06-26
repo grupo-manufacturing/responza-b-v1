@@ -22,3 +22,16 @@ export {
   type AiJobType,
   type AiQueueJobData,
 } from './ai.queue.js'
+export {
+  attachWorkerLifecycleLogs,
+  isDuplicateQueueJobError,
+  isQueueJobLastAttempt,
+  logWorkerJobFailure,
+  withJobTimeout,
+} from './worker.utils.js'
+export {
+  aiDefaultJobOptions,
+  buildQueueJobOptions,
+  mediaDefaultJobOptions,
+  webhookDefaultJobOptions,
+} from './queue.options.js'
