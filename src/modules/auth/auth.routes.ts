@@ -121,8 +121,14 @@ export function createAuthProtectedRouter(): Router {
   })
 
   router.patch('/me', validateRequest({ body: updateProfileBodySchema }), (req, res, next) => {
+    const accessToken = extractBearerToken(req)
+    if (accessToken === null) {
+      next(new AppError(401, 'UNAUTHORIZED', 'Authentication required'))
+      return
+    }
+
     void authService
-      .updateProfile(req.auth!, req.body)
+      .updateProfile(req.auth!, req.body, accessToken)
       .then((payload) => {
         res.status(200).json(toMeResponse(payload))
       })
@@ -133,8 +139,14 @@ export function createAuthProtectedRouter(): Router {
     '/change-password',
     validateRequest({ body: changePasswordBodySchema }),
     (req, res, next) => {
+      const accessToken = extractBearerToken(req)
+      if (accessToken === null) {
+        next(new AppError(401, 'UNAUTHORIZED', 'Authentication required'))
+        return
+      }
+
       void authService
-        .changePassword(req.auth!, req.body)
+        .changePassword(req.auth!, req.body, accessToken)
         .then(() => {
           res.status(200).json({ success: true })
         })

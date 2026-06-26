@@ -3,6 +3,7 @@ import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
 import * as subscriptionRepository from '../subscription/subscription.repository.js'
+import { invalidateSubscriptionCache } from '../subscription/subscription.cache.js'
 import { recordWebhookEventIfNew } from './razorpay-webhook.repository.js'
 import {
   applyActiveSubscriptionFromRazorpay,
@@ -161,24 +162,27 @@ async function dispatchSubscriptionEvent(
   switch (eventType) {
     case 'subscription.authenticated':
       await handleSubscriptionAuthenticated(organization, subscription)
-      return
+      break
     case 'subscription.activated':
       await handleSubscriptionActivated(organization, subscription)
-      return
+      break
     case 'subscription.charged':
       await handleSubscriptionCharged(organization, subscription)
-      return
+      break
     case 'subscription.cancelled':
       await handleSubscriptionCancelled(organization, subscription)
-      return
+      break
     case 'subscription.halted':
     case 'subscription.completed':
     case 'subscription.expired':
       await handleSubscriptionEnded(organization, subscription)
-      return
+      break
     default:
       logger.warn(`[razorpay-webhook] ignored subscription event ${eventType}`)
+      return
   }
+
+  await invalidateSubscriptionCache(organization.id)
 }
 
 export async function processRazorpayWebhook(input: {

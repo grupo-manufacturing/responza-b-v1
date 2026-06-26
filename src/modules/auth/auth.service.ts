@@ -8,6 +8,7 @@ import { getSupabaseAdminClient, getSupabaseAuthClient } from '../../shared/data
 import { AppError } from '../../shared/errors/index.js'
 import { getSubscriptionForOrganization } from '../subscription/subscription.service.js'
 import { TRANSLATION_LANGUAGES } from '../ai/ai.constants.js'
+import * as authCache from './auth.cache.js'
 import * as authRepository from './auth.repository.js'
 import { translationLanguageSchema } from '../ai/ai.schemas.js'
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
@@ -171,6 +172,11 @@ async function loadAuthContext(organizationId: string): Promise<AuthContext> {
 }
 
 export async function resolveAuthContextFromAccessToken(accessToken: string): Promise<AuthContext> {
+  const cached = await authCache.getCachedAuthContext(accessToken)
+  if (cached !== null) {
+    return cached
+  }
+
   const admin = getSupabaseAdminClient()
   const { data, error } = await admin.auth.getUser(accessToken)
 
@@ -178,7 +184,9 @@ export async function resolveAuthContextFromAccessToken(accessToken: string): Pr
     throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired access token')
   }
 
-  return loadAuthContext(data.user.id)
+  const auth = await loadAuthContext(data.user.id)
+  await authCache.setCachedAuthContext(accessToken, auth)
+  return auth
 }
 
 export async function registerOrganization(
@@ -417,6 +425,7 @@ async function buildProfilePayload(organization: OrganizationRecord): Promise<Au
 export async function updateProfile(
   auth: AuthContext,
   input: UpdateProfileBody,
+  accessToken: string,
 ): Promise<AuthSessionPayload> {
   const patch: authRepository.OrganizationProfilePatch = {}
 
@@ -443,6 +452,8 @@ export async function updateProfile(
     }
   }
 
+  await authCache.setCachedAuthContext(accessToken, toAuthContext(organization))
+
   return buildProfilePayload(organization)
 }
 
@@ -453,6 +464,7 @@ export function listTranslationLanguages() {
 export async function changePassword(
   auth: AuthContext,
   input: ChangePasswordBody,
+  accessToken: string,
 ): Promise<void> {
   const organization = await authRepository.findOrganizationById(auth.organizationId)
   if (organization === null) {
@@ -477,4 +489,6 @@ export async function changePassword(
   if (updateError !== null) {
     throw new AppError(400, 'BAD_REQUEST', updateError.message)
   }
+
+  await authCache.invalidateAuthContextCache(accessToken)
 }

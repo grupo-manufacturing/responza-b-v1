@@ -9,8 +9,13 @@ import {
   type BillingPlanKey,
 } from '../razorpay/billing.plans.js'
 import * as razorpayBilling from '../razorpay/razorpay.billing.js'
+import * as subscriptionCache from './subscription.cache.js'
+import type { SubscriptionCachePayload } from './subscription.cache.js'
 import * as subscriptionRepository from './subscription.repository.js'
 import * as usageService from './usage.service.js'
+
+export { invalidateSubscriptionCache } from './subscription.cache.js'
+export type { SubscriptionCachePayload } from './subscription.cache.js'
 
 function addDays(from: Date, days: number): Date {
   const result = new Date(from)
@@ -18,7 +23,9 @@ function addDays(from: Date, days: number): Date {
   return result
 }
 
-export async function getSubscriptionForOrganization(organizationId: string) {
+async function loadSubscriptionForOrganization(
+  organizationId: string,
+): Promise<SubscriptionCachePayload> {
   const organization = await subscriptionRepository.findOrganizationById(organizationId)
   if (organization === null) {
     throw new AppError(404, 'NOT_FOUND', 'Organization not found')
@@ -32,6 +39,7 @@ export async function getSubscriptionForOrganization(organizationId: string) {
     organization.subscription_status !== 'expired'
   ) {
     await subscriptionRepository.markSubscriptionExpired(organizationId)
+    await subscriptionCache.invalidateSubscriptionCache(organizationId)
   }
 
   const refreshed =
@@ -49,6 +57,17 @@ export async function getSubscriptionForOrganization(organizationId: string) {
     ...toSubscriptionResponse(refreshed, refreshed.plan, now),
     ...usage,
   }
+}
+
+export async function getSubscriptionForOrganization(organizationId: string) {
+  const cached = await subscriptionCache.getCachedSubscription(organizationId)
+  if (cached !== null) {
+    return cached
+  }
+
+  const subscription = await loadSubscriptionForOrganization(organizationId)
+  await subscriptionCache.setCachedSubscription(organizationId, subscription)
+  return subscription
 }
 
 export async function activateSubscription(organizationId: string, planKey: BillingPlanKey) {
@@ -72,10 +91,13 @@ export async function activateSubscription(organizationId: string, planKey: Bill
 
   const usage = await usageService.getConversationUsageSummary(updated)
 
-  return {
+  const subscription = {
     ...toSubscriptionResponse(updated, updated.plan),
     ...usage,
   }
+
+  await subscriptionCache.setCachedSubscription(organizationId, subscription)
+  return subscription
 }
 
 export function getBillingPlansCatalog() {
@@ -119,6 +141,8 @@ export async function cancelSubscription(organizationId: string, cancelAtCycleEn
     cancelAtCycleEnd,
   )
 
+  await subscriptionCache.invalidateSubscriptionCache(organizationId)
+
   return {
     razorpayStatus: result.subscription.status,
     cancelAtCycleEnd,
@@ -129,8 +153,11 @@ export async function syncSubscriptionFromRazorpay(organizationId: string) {
   const updated = await razorpayBilling.syncOrganizationSubscriptionFromRazorpay(organizationId)
   const usage = await usageService.getConversationUsageSummary(updated)
 
-  return {
+  const subscription = {
     ...toSubscriptionResponse(updated, updated.plan),
     ...usage,
   }
+
+  await subscriptionCache.setCachedSubscription(organizationId, subscription)
+  return subscription
 }

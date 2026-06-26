@@ -8,6 +8,7 @@ import {
   isBillingPlanKey,
 } from '../razorpay/billing.plans.js'
 import type { OrganizationRecord } from './subscription.repository.js'
+import * as subscriptionCache from './subscription.cache.js'
 import * as subscriptionRepository from './subscription.repository.js'
 import * as usageRepository from './usage.repository.js'
 
@@ -127,10 +128,14 @@ export async function recordBillableConversation(
     return
   }
 
-  await usageRepository.insertConversationUsageIfNew({
+  const recorded = await usageRepository.insertConversationUsageIfNew({
     organizationId,
     conversationId,
     billingPeriodStart: billingPeriod.startsAt,
     billingPeriodEnd: billingPeriod.endsAt,
   })
+
+  if (recorded) {
+    await subscriptionCache.invalidateSubscriptionCache(organizationId)
+  }
 }
