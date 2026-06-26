@@ -4,6 +4,7 @@ import {
   enrichInstagramConversationList,
   enrichInstagramParticipantRecord,
 } from '../../platforms/instagram/enrichment.js'
+import { enqueueInboundMediaIngestionJob } from '../../shared/queue/index.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError, isAppError } from '../../shared/errors/index.js'
 import { getInstagramCredentialsForOrganization } from '../integrations/credentials.service.js'
@@ -44,12 +45,10 @@ import * as usageService from '../subscription/usage.service.js'
 import {
   assertOutboundMediaStoragePath,
   resolveMessageMediaUrl,
-  storeInboundInstagramMedia,
-  storeInboundWhatsAppMedia,
   storeOutboundConversationMedia,
 } from '../media/media.service.js'
-import { messageMediaExists } from '../../shared/storage/index.js'
 import type { InboundMediaContentType } from '../media/media.constants.js'
+import { messageMediaExists } from '../../shared/storage/index.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -578,49 +577,46 @@ export async function reactToMessage(
 export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   const { conversation, participant, createdConversation } = await ensureConversationContext(input)
 
-  let contentType: MessageContentType = input.message.contentType ?? 'text'
+  const contentType: MessageContentType = input.message.contentType ?? 'text'
   let content = input.message.content
   let storagePath: string | null = null
   let mimeType: string | null = null
   let platformMediaId: string | null = null
   let fileSizeBytes: number | null = null
+  let pendingMediaIngestion:
+    | {
+        platform: Extract<IntegrationPlatform, 'whatsapp' | 'instagram'>
+        contentType: InboundMediaContentType
+        platformMediaId?: string
+        mediaUrl?: string
+        mimeTypeHint: string | null
+        filename?: string | null
+      }
+    | null = null
 
   if (
     isInboundMediaContentType(contentType) &&
     input.message.media !== undefined &&
     input.accessToken !== undefined
   ) {
-    const stored =
-      input.platform === 'whatsapp' && input.message.media.platformMediaId !== undefined
-        ? await storeInboundWhatsAppMedia({
-            contentType,
-            organizationId: input.organizationId,
-            conversationId: conversation.id,
-            platformMessageId: input.message.platformMessageId,
-            platformMediaId: input.message.media.platformMediaId,
-            mimeTypeHint: input.message.media.mimeType ?? null,
-            filename: input.message.media.filename ?? null,
-            accessToken: input.accessToken,
-          })
-        : input.platform === 'instagram' && input.message.media.mediaUrl !== undefined
-          ? await storeInboundInstagramMedia({
-              contentType,
-              organizationId: input.organizationId,
-              conversationId: conversation.id,
-              platformMessageId: input.message.platformMessageId,
-              mediaUrl: input.message.media.mediaUrl,
-              mimeTypeHint: input.message.media.mimeType ?? null,
-              filename: input.message.media.filename ?? null,
-              accessToken: input.accessToken,
-            })
-          : null
-
-    if (stored !== null) {
-      storagePath = stored.storagePath
-      mimeType = stored.mimeType
-      platformMediaId =
-        input.message.media.platformMediaId ?? input.message.media.mediaUrl ?? null
-      fileSizeBytes = stored.fileSizeBytes
+    if (input.platform === 'whatsapp' && input.message.media.platformMediaId !== undefined) {
+      platformMediaId = input.message.media.platformMediaId
+      pendingMediaIngestion = {
+        platform: 'whatsapp',
+        contentType,
+        platformMediaId: input.message.media.platformMediaId,
+        mimeTypeHint: input.message.media.mimeType ?? null,
+        filename: input.message.media.filename ?? null,
+      }
+    } else if (input.platform === 'instagram' && input.message.media.mediaUrl !== undefined) {
+      platformMediaId = input.message.media.mediaUrl
+      pendingMediaIngestion = {
+        platform: 'instagram',
+        contentType,
+        mediaUrl: input.message.media.mediaUrl,
+        mimeTypeHint: input.message.media.mimeType ?? null,
+        filename: input.message.media.filename ?? null,
+      }
     } else if (content.trim().length === 0 && input.message.media.filename?.trim()) {
       content = input.message.media.filename.trim()
     }
@@ -663,6 +659,22 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
 
   if (!createdConversation) {
     await usageService.recordBillableConversation(input.organizationId, conversation.id)
+  }
+
+  if (message !== null && pendingMediaIngestion !== null && input.accessToken !== undefined) {
+    await enqueueInboundMediaIngestionJob({
+      organizationId: input.organizationId,
+      conversationId: conversation.id,
+      messageId: message.id,
+      platform: pendingMediaIngestion.platform,
+      contentType: pendingMediaIngestion.contentType,
+      platformMessageId: input.message.platformMessageId,
+      accessToken: input.accessToken,
+      platformMediaId: pendingMediaIngestion.platformMediaId,
+      mediaUrl: pendingMediaIngestion.mediaUrl,
+      mimeTypeHint: pendingMediaIngestion.mimeTypeHint,
+      filename: pendingMediaIngestion.filename ?? null,
+    })
   }
 
   return {

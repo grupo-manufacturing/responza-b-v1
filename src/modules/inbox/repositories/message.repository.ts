@@ -237,6 +237,49 @@ export async function updateMessageDeliveryStatus(
   return normalizeMessageRecord(data)
 }
 
+export async function updateInboundMessageMedia(input: {
+  organization_id: string
+  message_id: string
+  storage_path: string
+  mime_type: string
+  file_size_bytes: number
+  platform_media_id?: string | null
+}): Promise<MessageRecord> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('messages')
+    .update({
+      storage_path: input.storage_path,
+      mime_type: input.mime_type,
+      file_size_bytes: input.file_size_bytes,
+      platform_media_id: input.platform_media_id ?? null,
+    })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.message_id)
+    .is('storage_path', null)
+    .select(MESSAGE_COLUMNS)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update message media')
+  }
+
+  if (data === null) {
+    const existing = await findMessageByIdForOrganization({
+      organization_id: input.organization_id,
+      message_id: input.message_id,
+    })
+
+    if (existing === null) {
+      throw new AppError(404, 'NOT_FOUND', 'Message not found')
+    }
+
+    return existing
+  }
+
+  return normalizeMessageRecord(data)
+}
+
 export type InsertInboundMessageInput = {
   organization_id: string
   conversation_id: string
