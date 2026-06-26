@@ -1,9 +1,16 @@
 import { Worker } from 'bullmq'
 
 import { loadEnv } from './shared/config/index.js'
+import { processAiQueueJob } from './modules/ai/ai.jobs.service.js'
 import { processInboundMediaIngestionJob } from './modules/media/media.ingestion.worker.js'
 import { processInstagramWebhookJob, processWhatsAppWebhookJob } from './modules/messaging/webhook.worker.js'
 import { logger } from './shared/logger.js'
+import {
+  AI_JOB_NAMES,
+  AI_QUEUE_NAME,
+  closeAiQueue,
+  type AiQueueJobData,
+} from './shared/queue/ai.queue.js'
 import {
   MEDIA_JOB_NAMES,
   MEDIA_QUEUE_NAME,
@@ -63,6 +70,25 @@ const mediaWorker = new Worker(
   },
 )
 
+const aiWorker = new Worker(
+  AI_QUEUE_NAME,
+  async (job) => {
+    if (job.name === AI_JOB_NAMES.run) {
+      const maxAttempts = job.opts.attempts ?? 1
+      const isLastAttempt = job.attemptsMade >= maxAttempts
+      await processAiQueueJob(job.data as AiQueueJobData, { markFailed: isLastAttempt })
+      logger.info(`AI job processed: ${job.id ?? 'unknown'}`)
+      return
+    }
+
+    throw new Error(`Unhandled AI job type: ${job.name}`)
+  },
+  {
+    connection: getRedisConnectionOptions(),
+    concurrency: env.AI_WORKER_CONCURRENCY,
+  },
+)
+
 function attachWorkerFailureLogs(worker: Worker, queueName: string): void {
   worker.on('failed', (job, error) => {
     logger.warn('Worker job failed', {
@@ -76,6 +102,7 @@ function attachWorkerFailureLogs(worker: Worker, queueName: string): void {
 
 attachWorkerFailureLogs(webhookWorker, WEBHOOK_QUEUE_NAME)
 attachWorkerFailureLogs(mediaWorker, MEDIA_QUEUE_NAME)
+attachWorkerFailureLogs(aiWorker, AI_QUEUE_NAME)
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) {
@@ -86,8 +113,10 @@ async function shutdown(signal: string): Promise<void> {
   logger.info(`Shutting down worker (${signal})`)
   await webhookWorker.close()
   await mediaWorker.close()
+  await aiWorker.close()
   await closeWebhookQueue()
   await closeMediaQueue()
+  await closeAiQueue()
   await closeRedisConnection()
 }
 
@@ -111,5 +140,5 @@ process.on('SIGTERM', () => {
 })
 
 logger.info(
-  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY})`,
+  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY}, ai: ${AI_QUEUE_NAME} x${env.AI_WORKER_CONCURRENCY})`,
 )

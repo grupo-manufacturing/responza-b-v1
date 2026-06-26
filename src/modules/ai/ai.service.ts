@@ -45,6 +45,40 @@ export async function rewriteDraft(input: RewriteBody) {
   return { rewritten }
 }
 
+export async function validateTranslateMessage(
+  auth: AuthContext,
+  input: TranslateBody,
+): Promise<void> {
+  const organization = await authRepository.findOrganizationById(auth.organizationId)
+  if (organization === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Organization account not found')
+  }
+
+  const parsedTargetLanguage = translationLanguageSchema.safeParse(
+    organization.preferred_translation_language,
+  )
+  if (!parsedTargetLanguage.success) {
+    throw new AppError(
+      400,
+      'BAD_REQUEST',
+      'Set your target language in Settings → General before translating messages',
+    )
+  }
+
+  const message = await findMessageByIdForOrganization({
+    organization_id: auth.organizationId,
+    message_id: input.messageId,
+  })
+
+  if (message === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Message not found')
+  }
+
+  if (!isTranslatableMessageContent(message.content)) {
+    throw new AppError(400, 'BAD_REQUEST', 'This message cannot be translated')
+  }
+}
+
 export async function translateMessage(auth: AuthContext, input: TranslateBody) {
   const organization = await authRepository.findOrganizationById(auth.organizationId)
   if (organization === null) {
@@ -89,6 +123,26 @@ export async function translateMessage(auth: AuthContext, input: TranslateBody) 
   }
 }
 
+export async function validateSuggestReply(
+  auth: AuthContext,
+  input: SuggestReplyBody,
+): Promise<void> {
+  const conversation = await findConversationSendContext(auth.organizationId, input.conversationId)
+  if (conversation === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
+  }
+
+  const messages = await listRecentMessagesForConversation({
+    organization_id: auth.organizationId,
+    conversation_id: input.conversationId,
+    limit: SUGGEST_REPLY_MESSAGE_LIMIT,
+  })
+
+  if (messages.length === 0) {
+    throw new AppError(400, 'BAD_REQUEST', 'No messages in this conversation yet')
+  }
+}
+
 export async function suggestReply(auth: AuthContext, input: SuggestReplyBody) {
   const conversation = await findConversationSendContext(auth.organizationId, input.conversationId)
   if (conversation === null) {
@@ -123,6 +177,22 @@ export async function suggestReply(auth: AuthContext, input: SuggestReplyBody) {
   }
 
   return { suggestions }
+}
+
+export async function validateAnalyzeConversation(
+  auth: AuthContext,
+  input: ConversationAnalyticsBody,
+): Promise<void> {
+  const conversation = await findConversationSendContext(auth.organizationId, input.conversationId)
+  if (conversation === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
+  }
+
+  const messages = await listMessagesByConversationId(auth.organizationId, input.conversationId)
+
+  if (messages.length < ANALYTICS_MIN_MESSAGES) {
+    throw new AppError(400, 'BAD_REQUEST', 'No messages in this conversation yet')
+  }
 }
 
 export async function analyzeConversation(auth: AuthContext, input: ConversationAnalyticsBody) {

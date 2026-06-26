@@ -4,6 +4,7 @@ export const CACHE_NAMESPACES = {
   auth: 'auth',
   subscription: 'subscription',
   rateLimit: 'rate-limit',
+  aiJob: 'ai-job',
 } as const
 
 export type CacheNamespace = (typeof CACHE_NAMESPACES)[keyof typeof CACHE_NAMESPACES]

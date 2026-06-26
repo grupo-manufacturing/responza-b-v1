@@ -15,3 +15,10 @@ export {
   enqueueInboundMediaIngestionJob,
   type InboundMediaIngestionJobData,
 } from './media.queue.js'
+export {
+  AI_JOB_NAMES,
+  AI_QUEUE_NAME,
+  closeAiQueue,
+  type AiJobType,
+  type AiQueueJobData,
+} from './ai.queue.js'

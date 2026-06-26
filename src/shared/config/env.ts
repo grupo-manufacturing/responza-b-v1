@@ -50,6 +50,8 @@ const envSchema = z.object({
   RAZORPAY_SUBSCRIPTION_TOTAL_COUNT: z.coerce.number().int().positive().default(120),
   WEBHOOK_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(10),
   MEDIA_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  AI_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  AI_JOB_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
 })
 

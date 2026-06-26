@@ -29,6 +29,10 @@ export const conversationAnalyticsBodySchema = z.object({
   conversationId: z.string().uuid(),
 })
 
+export const aiJobParamsSchema = z.object({
+  jobId: z.string().uuid(),
+})
+
 export const suggestReplyResponseSchema = z.object({
   suggestions: z
     .array(z.string().trim().min(1).max(SUGGEST_REPLY_MAX_LENGTH))
