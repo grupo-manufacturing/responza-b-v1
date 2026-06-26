@@ -1,6 +1,6 @@
 import { Queue } from 'bullmq'
 
-import { getRedisConnectionOptions } from './redis.js'
+import { getRedisConnectionOptions } from '../redis/client.js'
 
 export const WEBHOOK_QUEUE_NAME = 'webhooks'
 

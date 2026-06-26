@@ -9,7 +9,7 @@ import {
   type InstagramWebhookJobData,
   type WhatsAppWebhookJobData,
 } from './shared/queue/webhook.queue.js'
-import { closeRedisConnection, getRedisConnectionOptions } from './shared/queue/redis.js'
+import { closeRedisConnection, getRedisConnectionOptions } from './shared/redis/index.js'
 
 loadEnv()
 

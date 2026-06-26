@@ -1,7 +1,7 @@
 import { Router } from 'express'
 
 import { checkDatabaseConnection } from '../../shared/database/index.js'
-import { checkRedisConnection } from '../../shared/queue/index.js'
+import { checkRedisConnection } from '../../shared/redis/index.js'
 
 export const healthRouter = Router()
 

@@ -1,9 +1,4 @@
 export {
-  checkRedisConnection,
-  closeRedisConnection,
-  getRedisConnectionOptions,
-} from './redis.js'
-export {
   WEBHOOK_JOB_NAMES,
   WEBHOOK_QUEUE_NAME,
   closeWebhookQueue,

@@ -3,7 +3,8 @@ import type { Server } from 'node:http'
 import { createApp } from './app/createApp.js'
 import { loadEnv } from './shared/config/index.js'
 import { logger } from './shared/logger.js'
-import { closeRedisConnection, closeWebhookQueue } from './shared/queue/index.js'
+import { closeRedisConnection } from './shared/redis/index.js'
+import { closeWebhookQueue } from './shared/queue/index.js'
 
 const env = loadEnv()
 const app = createApp()
