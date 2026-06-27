@@ -4,25 +4,37 @@ import { createApp } from './app/createApp.js'
 import { loadEnv } from './shared/config/index.js'
 import { logger } from './shared/logger.js'
 import { closeRedisConnection } from './shared/redis/index.js'
-import { closeWebhookQueue } from './shared/queue/index.js'
+import {
+  closeAiQueue,
+  closeMediaQueue,
+  closeWebhookQueue,
+} from './shared/queue/index.js'
+import { beginShutdown } from './shared/shutdown.js'
 
 const env = loadEnv()
 const app = createApp()
 
 let server: Server | null = null
-let shuttingDown = false
+let shutdownStarted = false
 
 server = app.listen(env.PORT, () => {
   logger.info(`API listening on port ${env.PORT}`)
 })
 
 async function shutdown(signal: string): Promise<void> {
-  if (shuttingDown) {
+  if (shutdownStarted) {
     return
   }
 
-  shuttingDown = true
+  shutdownStarted = true
+  beginShutdown()
   logger.info(`Shutting down API (${signal})`)
+
+  const forceExitTimer = setTimeout(() => {
+    logger.warn(`API shutdown grace period exceeded (${env.SHUTDOWN_GRACE_MS}ms)`)
+    process.exit(1)
+  }, env.SHUTDOWN_GRACE_MS)
+  forceExitTimer.unref()
 
   if (server !== null) {
     await new Promise<void>((resolve, reject) => {
@@ -39,7 +51,11 @@ async function shutdown(signal: string): Promise<void> {
   }
 
   await closeWebhookQueue()
+  await closeMediaQueue()
+  await closeAiQueue()
   await closeRedisConnection()
+
+  clearTimeout(forceExitTimer)
 }
 
 function handleShutdownSignal(signal: string): void {

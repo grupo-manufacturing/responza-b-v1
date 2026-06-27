@@ -6,6 +6,9 @@ import { z } from 'zod'
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
+  TRUST_PROXY_HOPS: z.coerce.number().int().nonnegative().default(1),
+  HTTP_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  SHUTDOWN_GRACE_MS: z.coerce.number().int().positive().default(10000),
   REDIS_URL: z.string().trim().min(1).default('redis://localhost:6379'),
   CACHE_AUTH_TTL_SECONDS: z.coerce.number().int().positive().default(120),
   CACHE_SUBSCRIPTION_TTL_SECONDS: z.coerce.number().int().positive().default(60),
