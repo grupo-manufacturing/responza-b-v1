@@ -53,7 +53,7 @@ export function buildSuggestReplySystemPrompt(
   const lines = [
     'You generate reply suggestions for a business inbox on WhatsApp or Instagram.',
     'Return valid JSON only in this exact shape: {"suggestions":["...","..."]}.',
-    'Provide exactly 2 or 3 distinct reply options.',
+    'Provide exactly 2 distinct reply options.',
     'Each suggestion must be ready to send — no labels, numbering, or quotes inside the strings.',
     'Keep replies concise and suitable for mobile chat.',
     'Do not invent prices, discounts, dates, order IDs, or promises that are not supported by the thread or business context.',
@@ -107,6 +107,6 @@ export function buildSuggestReplyUserPrompt(transcript: string): string {
     'Recent conversation (oldest to newest):',
     transcript,
     '',
-    'Generate 2-3 reply suggestions for the business to send next.',
+    'Generate exactly 2 reply suggestions for the business to send next.',
   ].join('\n')
 }

@@ -1,6 +1,5 @@
 import {
   parseWhatsAppInboundMessages,
-  parseWhatsAppInboundReactions,
   parseWhatsAppOutboundEchoes,
   parseWhatsAppOutboundReadReceipts,
 } from '../../../platforms/whatsapp/parseWebhook.js'
@@ -15,7 +14,6 @@ import {
   resolveWhatsAppIntegrationByWabaId,
 } from '../../integrations/credentials.service.js'
 import {
-  applyCustomerReaction,
   markOutboundMessageRead,
   receiveInboundMessage,
   receiveOutboundEcho,
@@ -82,31 +80,6 @@ export async function processWhatsAppWebhook(input: {
   const inboundMessages = parseWhatsAppInboundMessages(input.body)
   const outboundEchoes = parseWhatsAppOutboundEchoes(input.body)
   const readReceipts = parseWhatsAppOutboundReadReceipts(input.body)
-  const inboundReactions = parseWhatsAppInboundReactions(input.body)
-
-  for (const reaction of inboundReactions) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        phoneNumberId: reaction.phoneNumberId,
-        wabaId: reaction.wabaId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
-      await applyCustomerReaction({
-        organizationId: integration.organizationId,
-        platformMessageId: reaction.targetPlatformMessageId,
-        emoji: reaction.emoji,
-      })
-    } catch (error) {
-      logger.warn('WhatsApp inbound reaction webhook failed', {
-        platformMessageId: reaction.targetPlatformMessageId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
 
   for (const receipt of readReceipts) {
     try {

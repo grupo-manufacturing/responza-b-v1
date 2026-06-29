@@ -24,13 +24,6 @@ export type WhatsAppOutboundReadReceipt = {
   platformMessageId: string
 }
 
-export type WhatsAppInboundReaction = {
-  phoneNumberId: string | null
-  wabaId: string | null
-  targetPlatformMessageId: string
-  emoji: string | null
-}
-
 export type WhatsAppOutboundEcho = {
   phoneNumberId: string | null
   wabaId: string | null
@@ -334,63 +327,4 @@ export function parseWhatsAppOutboundReadReceipts(body: unknown): WhatsAppOutbou
   }
 
   return receipts
-}
-
-export function parseWhatsAppInboundReactions(body: unknown): WhatsAppInboundReaction[] {
-  const payload = asRecord(body)
-  if (payload === null || payload.object !== 'whatsapp_business_account') {
-    return []
-  }
-
-  const entries = Array.isArray(payload.entry) ? payload.entry : []
-  const reactions: WhatsAppInboundReaction[] = []
-
-  for (const entryValue of entries) {
-    const entry = asRecord(entryValue)
-    if (entry === null) {
-      continue
-    }
-
-    const wabaId = asString(entry.id)
-    const changes = Array.isArray(entry.changes) ? entry.changes : []
-
-    for (const changeValue of changes) {
-      const change = asRecord(changeValue)
-      if (change === null) {
-        continue
-      }
-
-      const value = asRecord(change.value)
-      if (value === null) {
-        continue
-      }
-
-      const metadata = asRecord(value.metadata)
-      const phoneNumberId = asString(metadata?.phone_number_id)
-      const messages = Array.isArray(value.messages) ? value.messages : []
-
-      for (const messageValue of messages) {
-        const message = asRecord(messageValue)
-        if (message === null || asString(message.type) !== 'reaction') {
-          continue
-        }
-
-        const reaction = asRecord(message.reaction)
-        const targetPlatformMessageId = asString(reaction?.message_id)
-        if (targetPlatformMessageId === null) {
-          continue
-        }
-
-        const emoji = asString(reaction?.emoji)
-        reactions.push({
-          phoneNumberId,
-          wabaId,
-          targetPlatformMessageId,
-          emoji: emoji === null || emoji.length === 0 ? null : emoji,
-        })
-      }
-    }
-  }
-
-  return reactions
 }

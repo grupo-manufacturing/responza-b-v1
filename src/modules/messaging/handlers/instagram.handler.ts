@@ -1,6 +1,5 @@
 import {
   parseInstagramInboundMessages,
-  parseInstagramInboundReactions,
   parseInstagramOutboundEchoes,
   parseInstagramOutboundReadReceipts,
 } from '../../../platforms/instagram/parseWebhook.js'
@@ -12,7 +11,6 @@ import { logger } from '../../../shared/logger.js'
 import type { IntegrationCredentials } from '../../integrations/integrations.constants.js'
 import { resolveInstagramIntegrationByBusinessId } from '../../integrations/credentials.service.js'
 import {
-  applyCustomerReaction,
   markOutboundMessageRead,
   receiveInboundMessage,
   receiveOutboundEcho,
@@ -66,30 +64,6 @@ export async function processInstagramWebhook(input: {
   const inboundMessages = parseInstagramInboundMessages(input.body)
   const outboundEchoes = parseInstagramOutboundEchoes(input.body)
   const readReceipts = parseInstagramOutboundReadReceipts(input.body)
-  const inboundReactions = parseInstagramInboundReactions(input.body)
-
-  for (const reaction of inboundReactions) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        businessAccountId: reaction.businessAccountId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
-      await applyCustomerReaction({
-        organizationId: integration.organizationId,
-        platformMessageId: reaction.targetPlatformMessageId,
-        emoji: reaction.emoji,
-      })
-    } catch (error) {
-      logger.warn('Instagram inbound reaction webhook failed', {
-        platformMessageId: reaction.targetPlatformMessageId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
 
   for (const receipt of readReceipts) {
     try {

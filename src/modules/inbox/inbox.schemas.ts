@@ -5,25 +5,10 @@ import { SUPPORTED_PLATFORMS } from '../integrations/integrations.constants.js'
 export const MESSAGE_DIRECTION_VALUES = ['inbound', 'outbound'] as const
 export const MESSAGE_STATUS_VALUES = ['pending', 'sent', 'failed', 'read'] as const
 export const MESSAGE_CONTENT_TYPE_VALUES = ['text', 'image', 'video', 'audio', 'document'] as const
-export const MESSAGE_QUICK_EMOJIS = [
-  '😀',
-  '😂',
-  '❤️',
-  '👍',
-  '🙏',
-  '🎉',
-  '🔥',
-  '✨',
-  '😊',
-  '😍',
-  '🤔',
-  '👋',
-] as const
 
 export type MessageDirection = (typeof MESSAGE_DIRECTION_VALUES)[number]
 export type MessageStatus = (typeof MESSAGE_STATUS_VALUES)[number]
 export type MessageContentType = (typeof MESSAGE_CONTENT_TYPE_VALUES)[number]
-export type MessageQuickEmoji = (typeof MESSAGE_QUICK_EMOJIS)[number]
 export type MediaContentType = Exclude<MessageContentType, 'text'>
 
 const MEDIA_CONTENT_TYPES = new Set<MessageContentType>(['image', 'video', 'audio', 'document'])
@@ -32,12 +17,6 @@ export function isMediaContentType(
   contentType: MessageContentType,
 ): contentType is MediaContentType {
   return MEDIA_CONTENT_TYPES.has(contentType)
-}
-
-const messageReactionEmojiSchema = z.enum(MESSAGE_QUICK_EMOJIS)
-
-export function isAllowedReactionEmoji(value: string): value is MessageQuickEmoji {
-  return (MESSAGE_QUICK_EMOJIS as readonly string[]).includes(value)
 }
 
 const apiPlatformSchema = z.enum(SUPPORTED_PLATFORMS)
@@ -134,16 +113,7 @@ export const getConversationQuerySchema = z.object({
   before: z.string().trim().min(1).optional(),
 })
 
-export const reactMessageParamsSchema = conversationIdParamsSchema.extend({
-  messageId: z.string().uuid(),
-})
-
-export const reactToMessageBodySchema = z.object({
-  emoji: messageReactionEmojiSchema.nullable(),
-})
-
 export type ListInboxQuery = z.infer<typeof listInboxQuerySchema>
 export type GetConversationQuery = z.infer<typeof getConversationQuerySchema>
 export type SendMessageBody = z.infer<typeof sendMessageBodySchema>
 export type UploadOutboundMediaFields = z.infer<typeof uploadOutboundMediaFieldsSchema>
-export type ReactToMessageBody = z.infer<typeof reactToMessageBodySchema>

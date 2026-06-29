@@ -20,12 +20,6 @@ export type InstagramOutboundReadReceipt = {
   platformMessageId: string
 }
 
-export type InstagramInboundReaction = {
-  businessAccountId: string | null
-  targetPlatformMessageId: string
-  emoji: string | null
-}
-
 export type InstagramOutboundEcho = {
   businessAccountId: string | null
   to: string
@@ -276,81 +270,4 @@ export function parseInstagramOutboundReadReceipts(body: unknown): InstagramOutb
   }
 
   return receipts
-}
-
-const INSTAGRAM_REACTION_FALLBACK: Record<string, string> = {
-  like: '👍',
-  love: '❤️',
-  haha: '😂',
-  wow: '😀',
-  sad: '😊',
-  angry: '🔥',
-}
-
-export function parseInstagramInboundReactions(body: unknown): InstagramInboundReaction[] {
-  const payload = asRecord(body)
-  if (payload === null || payload.object !== 'instagram') {
-    return []
-  }
-
-  const entries = Array.isArray(payload.entry) ? payload.entry : []
-  const reactions: InstagramInboundReaction[] = []
-
-  for (const entryValue of entries) {
-    const entry = asRecord(entryValue)
-    if (entry === null) {
-      continue
-    }
-
-    const businessAccountId = asString(entry.id)
-    const messaging = Array.isArray(entry.messaging) ? entry.messaging : []
-
-    for (const messageValue of messaging) {
-      const messageEvent = asRecord(messageValue)
-      if (messageEvent === null) {
-        continue
-      }
-
-      const sender = asRecord(messageEvent.sender)
-      const senderId = asString(sender?.id)
-      const recipient = asRecord(messageEvent.recipient)
-      const recipientId = asString(recipient?.id)
-      const reaction = asRecord(messageEvent.reaction)
-
-      if (senderId === null || reaction === null) {
-        continue
-      }
-
-      if (senderId === businessAccountId || senderId === recipientId) {
-        continue
-      }
-
-      const targetPlatformMessageId = asString(reaction.mid)
-      if (targetPlatformMessageId === null) {
-        continue
-      }
-
-      if (asString(reaction.action) === 'unreact') {
-        reactions.push({
-          businessAccountId,
-          targetPlatformMessageId,
-          emoji: null,
-        })
-        continue
-      }
-
-      const emoji =
-        asString(reaction.emoji) ??
-        INSTAGRAM_REACTION_FALLBACK[asString(reaction.reaction) ?? ''] ??
-        null
-
-      reactions.push({
-        businessAccountId,
-        targetPlatformMessageId,
-        emoji,
-      })
-    }
-  }
-
-  return reactions
 }

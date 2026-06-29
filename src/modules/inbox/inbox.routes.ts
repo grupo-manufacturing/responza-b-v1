@@ -9,13 +9,10 @@ import {
   conversationIdParamsSchema,
   getConversationQuerySchema,
   listInboxQuerySchema,
-  reactMessageParamsSchema,
-  reactToMessageBodySchema,
   sendMessageBodySchema,
   uploadOutboundMediaFieldsSchema,
   type GetConversationQuery,
   type ListInboxQuery,
-  type ReactToMessageBody,
   type SendMessageBody,
   type UploadOutboundMediaFields,
 } from './inbox.schemas.js'
@@ -85,24 +82,6 @@ export function createConversationsRouter(): Router {
         .sendMessage(req.auth!, id, req.body as SendMessageBody)
         .then((result) => {
           res.status(201).json(result)
-        })
-        .catch(next)
-    },
-  )
-
-  router.post(
-    '/:id/messages/:messageId/reactions',
-    validateRequest({
-      params: reactMessageParamsSchema,
-      body: reactToMessageBodySchema,
-    }),
-    (req, res, next) => {
-      const { id, messageId } = req.params as { id: string; messageId: string }
-
-      void inboxService
-        .reactToMessage(req.auth!, id, messageId, req.body as ReactToMessageBody)
-        .then((result) => {
-          res.status(200).json(result)
         })
         .catch(next)
     },
