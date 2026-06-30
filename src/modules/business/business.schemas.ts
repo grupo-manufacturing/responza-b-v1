@@ -1,27 +1,26 @@
 import { z } from 'zod'
 
-import {
-  AI_RESTRICTIONS_VALUES,
-  COMMON_CONVERSATION_TYPES_VALUES,
-  CUSTOMER_MESSAGE_LANGUAGE_VALUES,
-  CUSTOMER_TONE_VALUES,
-} from './business.constants.js'
+const optionalUrlField = z
+  .union([z.string().trim().url({ message: 'Must be a valid URL' }), z.literal('')])
+  .optional()
+  .transform((value) => {
+    if (value === undefined || value === '') {
+      return null
+    }
 
-const trimmedText = (max: number) => z.string().trim().min(1).max(max)
-
-export const customerToneSchema = z.enum(CUSTOMER_TONE_VALUES)
-export const commonConversationTypesSchema = z.enum(COMMON_CONVERSATION_TYPES_VALUES)
-export const customerMessageLanguageSchema = z.enum(CUSTOMER_MESSAGE_LANGUAGE_VALUES)
-export const aiRestrictionsSchema = z.enum(AI_RESTRICTIONS_VALUES)
+    return value
+  })
 
 export const completeBusinessBodySchema = z.object({
-  brandAndProducts: trimmedText(2000),
-  customerTone: customerToneSchema,
-  sampleCustomerReply: trimmedText(2000).min(20),
-  commonConversationTypes: commonConversationTypesSchema,
-  customerMessageLanguage: customerMessageLanguageSchema,
-  signaturePhrases: trimmedText(500),
-  aiRestrictions: aiRestrictionsSchema,
+  brandName: z.string().trim().min(1).max(200),
+  websiteUrl: optionalUrlField,
+  facebookPageUrl: optionalUrlField,
+  instagramPageUrl: optionalUrlField,
+  businessDescription: z.string().trim().min(20).max(5000),
+})
+
+export const catalogueFileParamsSchema = z.object({
+  fileId: z.string().uuid(),
 })
 
 export type CompleteBusinessBody = z.infer<typeof completeBusinessBodySchema>

@@ -3,17 +3,28 @@ import { AppError } from '../../shared/errors/index.js'
 import type { CompleteBusinessBody } from './business.schemas.js'
 import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
+import type { CatalogueFileRecord } from './business.types.js'
+import { storeBusinessCatalogueFile } from './business.storage.js'
+
+function toCatalogueFileResponse(file: CatalogueFileRecord) {
+  return {
+    id: file.id,
+    filename: file.filename,
+    mimeType: file.mimeType,
+    fileSizeBytes: file.fileSizeBytes,
+    createdAt: file.createdAt,
+  }
+}
 
 function toBusinessResponse(profile: BusinessProfileRecord) {
   return {
     organizationId: profile.organization_id,
-    brandAndProducts: profile.brand_and_products,
-    customerTone: profile.customer_tone,
-    sampleCustomerReply: profile.sample_customer_reply,
-    commonConversationTypes: profile.common_conversation_types,
-    customerMessageLanguage: profile.customer_message_language,
-    signaturePhrases: profile.signature_phrases,
-    aiRestrictions: profile.ai_restrictions,
+    brandName: profile.brand_name,
+    websiteUrl: profile.website_url,
+    facebookPageUrl: profile.facebook_page_url,
+    instagramPageUrl: profile.instagram_page_url,
+    businessDescription: profile.business_description,
+    catalogueFiles: profile.catalogue_files.map(toCatalogueFileResponse),
     completed: profile.completed_at !== null,
     completedAt: profile.completed_at,
     createdAt: profile.created_at,
@@ -29,13 +40,11 @@ function assertOrganizationAccess(auth: AuthContext, organizationId: string): vo
 
 function bodyToProfilePatch(input: CompleteBusinessBody): businessRepository.BusinessProfileUpdatePatch {
   return {
-    brand_and_products: input.brandAndProducts,
-    customer_tone: input.customerTone,
-    sample_customer_reply: input.sampleCustomerReply,
-    common_conversation_types: input.commonConversationTypes,
-    customer_message_language: input.customerMessageLanguage,
-    signature_phrases: input.signaturePhrases,
-    ai_restrictions: input.aiRestrictions,
+    brand_name: input.brandName,
+    website_url: input.websiteUrl,
+    facebook_page_url: input.facebookPageUrl,
+    instagram_page_url: input.instagramPageUrl,
+    business_description: input.businessDescription,
   }
 }
 
@@ -64,4 +73,59 @@ export async function completeBusiness(auth: AuthContext, input: CompleteBusines
     bodyToProfilePatch(input),
   )
   return toBusinessResponse(completed)
+}
+
+export async function uploadCatalogueFile(
+  auth: AuthContext,
+  file:
+    | {
+        buffer: Buffer
+        mimetype: string
+        originalname: string
+      }
+    | undefined,
+) {
+  if (file === undefined || file.buffer.byteLength === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Catalogue file is required')
+  }
+
+  const stored = await storeBusinessCatalogueFile({
+    organizationId: auth.organizationId,
+    buffer: file.buffer,
+    mimeTypeHint: file.mimetype,
+    filename: file.originalname,
+  })
+
+  const catalogueFile: CatalogueFileRecord = {
+    id: stored.id,
+    storagePath: stored.storagePath,
+    filename: stored.filename,
+    mimeType: stored.mimeType,
+    fileSizeBytes: stored.fileSizeBytes,
+    createdAt: new Date().toISOString(),
+  }
+
+  const profile = await businessRepository.addCatalogueFile(auth.organizationId, catalogueFile)
+
+  return {
+    file: toCatalogueFileResponse(catalogueFile),
+    profile: toBusinessResponse(profile),
+  }
+}
+
+export async function deleteCatalogueFile(auth: AuthContext, fileId: string) {
+  const { profile, storagePath } = await businessRepository.removeCatalogueFile(
+    auth.organizationId,
+    fileId,
+  )
+
+  if (storagePath !== null) {
+    try {
+      await businessRepository.deleteCatalogueStorageObject(storagePath)
+    } catch {
+      // Profile metadata is already updated; orphaned storage can be cleaned later.
+    }
+  }
+
+  return toBusinessResponse(profile)
 }

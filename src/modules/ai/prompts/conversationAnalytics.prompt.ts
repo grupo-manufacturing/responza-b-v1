@@ -1,22 +1,6 @@
 import type { BusinessProfileRecord } from '../../business/business.repository.js'
-import type { CommonConversationTypes } from '../../business/business.constants.js'
+import { buildBusinessContextLines } from '../../business/business.context.js'
 import { ANALYTICS_RECENT_MESSAGE_COUNT } from '../ai.constants.js'
-
-const CONVERSATION_GUIDANCE: Record<CommonConversationTypes, string> = {
-  order_status_tracking: 'Customers often ask about order status and delivery.',
-  product_enquiries: 'Customers often ask about products, pricing, and availability.',
-  complaints_returns: 'Customers may raise complaints or return requests.',
-  payment_issues: 'Customers may ask about payment, invoices, or UPI issues.',
-  all_of_the_above: 'Handle mixed enquiries: orders, products, complaints, and payments.',
-}
-
-function optionalLine(label: string, value: string | null | undefined): string | null {
-  if (value === null || value === undefined || value.trim().length === 0) {
-    return null
-  }
-
-  return `${label}: ${value.trim()}`
-}
 
 export function buildConversationAnalyticsSystemPrompt(profile: BusinessProfileRecord | null): string {
   const lines = [
@@ -37,17 +21,10 @@ export function buildConversationAnalyticsSystemPrompt(profile: BusinessProfileR
     '- Write customerHistory and conversationSummary in clear English unless the thread is predominantly in another language.',
   ]
 
-  if (profile === null) {
-    return lines.join('\n')
-  }
-
-  const brandLine = optionalLine('Business context', profile.brand_and_products)
-  if (brandLine !== null) {
-    lines.push(brandLine)
-  }
-
-  if (profile.common_conversation_types !== null) {
-    lines.push(`Typical enquiries: ${CONVERSATION_GUIDANCE[profile.common_conversation_types]}`)
+  const contextLines = buildBusinessContextLines(profile)
+  if (contextLines.length > 0) {
+    lines.push('Business context:')
+    lines.push(...contextLines)
   }
 
   return lines.join('\n')

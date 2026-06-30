@@ -1,36 +1,15 @@
-export const CUSTOMER_TONE_VALUES = [
-  'very_formal_sir_madam',
-  'semi_formal_friendly',
-  'casual_like_friend',
-  'hinglish_local_feel',
-  'fully_regional_language',
+export const CATALOGUE_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+export const CATALOGUE_MAX_FILES = 5
+
+export const CATALOGUE_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
 ] as const
 
-export const COMMON_CONVERSATION_TYPES_VALUES = [
-  'order_status_tracking',
-  'product_enquiries',
-  'complaints_returns',
-  'payment_issues',
-  'all_of_the_above',
-] as const
-
-export const CUSTOMER_MESSAGE_LANGUAGE_VALUES = [
-  'english',
-  'hindi',
-  'hinglish',
-  'regional',
-  'mix_of_everything',
-] as const
-
-export const AI_RESTRICTIONS_VALUES = [
-  'never_mention_competitors',
-  'never_offer_discounts_without_approval',
-  'never_discuss_refunds_directly',
-  'never_use_slang',
-  'no_restrictions',
-] as const
-
-export type CustomerTone = (typeof CUSTOMER_TONE_VALUES)[number]
-export type CommonConversationTypes = (typeof COMMON_CONVERSATION_TYPES_VALUES)[number]
-export type CustomerMessageLanguage = (typeof CUSTOMER_MESSAGE_LANGUAGE_VALUES)[number]
-export type AiRestrictions = (typeof AI_RESTRICTIONS_VALUES)[number]
+export type CatalogueMimeType = (typeof CATALOGUE_ALLOWED_MIME_TYPES)[number]
