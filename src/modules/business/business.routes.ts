@@ -7,7 +7,9 @@ import {
 import {
   catalogueFileParamsSchema,
   completeBusinessBodySchema,
+  updateBusinessBodySchema,
   type CompleteBusinessBody,
+  type UpdateBusinessBody,
 } from './business.schemas.js'
 import * as businessService from './business.service.js'
 
@@ -35,6 +37,15 @@ export function createBusinessRouter(): Router {
         .catch(next)
     },
   )
+
+  router.patch('/', validateRequest({ body: updateBusinessBodySchema }), (req, res, next) => {
+    void businessService
+      .updateBusiness(req.auth!, req.body as UpdateBusinessBody)
+      .then((profile) => {
+        res.status(200).json({ profile })
+      })
+      .catch(next)
+  })
 
   router.post('/catalogue', businessCatalogueUpload.single('file'), (req, res, next) => {
     void businessService

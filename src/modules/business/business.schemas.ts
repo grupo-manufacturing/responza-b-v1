@@ -19,8 +19,11 @@ export const completeBusinessBodySchema = z.object({
   businessDescription: z.string().trim().min(20).max(5000),
 })
 
+export const updateBusinessBodySchema = completeBusinessBodySchema
+
 export const catalogueFileParamsSchema = z.object({
   fileId: z.string().uuid(),
 })
 
 export type CompleteBusinessBody = z.infer<typeof completeBusinessBodySchema>
+export type UpdateBusinessBody = z.infer<typeof updateBusinessBodySchema>

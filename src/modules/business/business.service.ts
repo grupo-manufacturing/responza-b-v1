@@ -1,6 +1,6 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import type { CompleteBusinessBody } from './business.schemas.js'
+import type { CompleteBusinessBody, UpdateBusinessBody } from './business.schemas.js'
 import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
 import type { CatalogueFileRecord } from './business.types.js'
@@ -38,7 +38,9 @@ function assertOrganizationAccess(auth: AuthContext, organizationId: string): vo
   }
 }
 
-function bodyToProfilePatch(input: CompleteBusinessBody): businessRepository.BusinessProfileUpdatePatch {
+function bodyToProfilePatch(
+  input: CompleteBusinessBody | UpdateBusinessBody,
+): businessRepository.BusinessProfileUpdatePatch {
   return {
     brand_name: input.brandName,
     website_url: input.websiteUrl,
@@ -73,6 +75,19 @@ export async function completeBusiness(auth: AuthContext, input: CompleteBusines
     bodyToProfilePatch(input),
   )
   return toBusinessResponse(completed)
+}
+
+export async function updateBusiness(auth: AuthContext, input: UpdateBusinessBody) {
+  const profile = await businessRepository.findProfileByOrganizationId(auth.organizationId)
+  if (profile === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Business profile not found')
+  }
+
+  const updated = await businessRepository.updateProfile(
+    auth.organizationId,
+    bodyToProfilePatch(input),
+  )
+  return toBusinessResponse(updated)
 }
 
 export async function uploadCatalogueFile(

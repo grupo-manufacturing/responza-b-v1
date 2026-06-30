@@ -110,6 +110,29 @@ export async function findProfileByOrganizationId(
   return normalizeProfileRecord(data as Record<string, unknown>)
 }
 
+export async function updateProfile(
+  organizationId: string,
+  patch: BusinessProfileUpdatePatch,
+): Promise<BusinessProfileRecord> {
+  const client = getSupabaseAdminClient()
+  const updatedAt = new Date().toISOString()
+  const { data, error } = await client
+    .from('organization_business_profiles')
+    .update({
+      ...patch,
+      updated_at: updatedAt,
+    })
+    .eq('organization_id', organizationId)
+    .select(PROFILE_COLUMNS)
+    .single()
+
+  if (error !== null || data === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update business profile')
+  }
+
+  return normalizeProfileRecord(data as Record<string, unknown>)
+}
+
 export async function completeProfile(
   organizationId: string,
   patch: BusinessProfileUpdatePatch,
