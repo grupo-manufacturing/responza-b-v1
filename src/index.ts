@@ -5,6 +5,7 @@ import { loadEnv } from './shared/config/index.js'
 import { logger } from './shared/logger.js'
 import { closeRedisConnection } from './shared/redis/index.js'
 import {
+  closeAgentQueue,
   closeAiQueue,
   closeMediaQueue,
   closeWebhookQueue,
@@ -53,6 +54,7 @@ async function shutdown(signal: string): Promise<void> {
   await closeWebhookQueue()
   await closeMediaQueue()
   await closeAiQueue()
+  await closeAgentQueue()
   await closeRedisConnection()
 
   clearTimeout(forceExitTimer)

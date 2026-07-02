@@ -58,6 +58,14 @@ const envSchema = z.object({
   WEBHOOK_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   MEDIA_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   AI_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(25000),
+  AGENT_ENABLED: z
+    .string()
+    .default('true')
+    .transform((value) => value === 'true' || value === '1'),
+  AGENT_DAILY_REPLY_LIMIT: z.coerce.number().int().positive().default(10),
+  AGENT_JOB_DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(4000),
+  AGENT_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
+  AGENT_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(25000),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
 })
 

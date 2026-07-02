@@ -102,13 +102,14 @@ export async function createOrganization(input: {
 export type OrganizationProfilePatch = {
   name?: string
   preferred_translation_language?: string | null
+  agent_enabled?: boolean
 }
 
 export async function updateOrganizationProfile(
   organizationId: string,
   patch: OrganizationProfilePatch,
 ): Promise<OrganizationRecord> {
-  const payload: Record<string, string | null> = {
+  const payload: Record<string, string | boolean | null> = {
     updated_at: new Date().toISOString(),
   }
 
@@ -118,6 +119,10 @@ export async function updateOrganizationProfile(
 
   if (patch.preferred_translation_language !== undefined) {
     payload.preferred_translation_language = patch.preferred_translation_language
+  }
+
+  if (patch.agent_enabled !== undefined) {
+    payload.agent_enabled = patch.agent_enabled
   }
 
   const client = getSupabaseAdminClient()

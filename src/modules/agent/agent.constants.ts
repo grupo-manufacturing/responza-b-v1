@@ -1,0 +1,2 @@
+export const AGENT_CONTEXT_MESSAGE_LIMIT = 6
+export const AGENT_REPLY_MAX_LENGTH = 1000
