@@ -25,12 +25,12 @@ export async function completeChat(input: {
   const env = loadEnv()
 
   if (!env.AI_ENABLED) {
-    throw new AppError(503, 'INTERNAL_ERROR', 'AI rewrite is not enabled')
+    throw new AppError(503, 'INTERNAL_ERROR', 'AI is not enabled')
   }
 
   const apiKey = env.OPENAI_API_KEY.trim()
   if (apiKey.length === 0) {
-    throw new AppError(503, 'INTERNAL_ERROR', 'AI rewrite is not configured')
+    throw new AppError(503, 'INTERNAL_ERROR', 'AI is not configured')
   }
 
   const controller = new AbortController()
@@ -62,12 +62,12 @@ export async function completeChat(input: {
         status: response.status,
         message: data.error?.message ?? 'Unknown error',
       })
-      throw new AppError(502, 'INTERNAL_ERROR', 'AI rewrite failed. Please try again.')
+      throw new AppError(502, 'INTERNAL_ERROR', 'AI request failed. Please try again.')
     }
 
     const content = data.choices?.[0]?.message?.content?.trim()
     if (content === undefined || content.length === 0) {
-      throw new AppError(502, 'INTERNAL_ERROR', 'AI rewrite returned an empty response')
+      throw new AppError(502, 'INTERNAL_ERROR', 'AI returned an empty response')
     }
 
     return content
@@ -77,13 +77,13 @@ export async function completeChat(input: {
     }
 
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new AppError(504, 'INTERNAL_ERROR', 'AI rewrite timed out. Please try again.')
+      throw new AppError(504, 'INTERNAL_ERROR', 'AI request timed out. Please try again.')
     }
 
     logger.warn('[ai] OpenAI request error', {
       error: error instanceof Error ? error.message : String(error),
     })
-    throw new AppError(502, 'INTERNAL_ERROR', 'AI rewrite failed. Please try again.')
+    throw new AppError(502, 'INTERNAL_ERROR', 'AI request failed. Please try again.')
   } finally {
     clearTimeout(timeout)
   }

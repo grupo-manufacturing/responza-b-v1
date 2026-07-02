@@ -6,7 +6,6 @@ import * as aiJobsService from './ai.jobs.service.js'
 import {
   aiJobParamsSchema,
   conversationAnalyticsBodySchema,
-  rewriteBodySchema,
   suggestReplyBodySchema,
   translateBodySchema,
 } from './ai.schemas.js'
@@ -25,20 +24,6 @@ export function createAiRouter(): Router {
       })
       .catch(next)
   })
-
-  router.post(
-    '/rewrite',
-    rateLimiter,
-    validateRequest({ body: rewriteBodySchema }),
-    (req, res, next) => {
-      void aiJobsService
-        .enqueueRewriteJob(req.auth!, req.body)
-        .then((result) => {
-          res.status(202).json(result)
-        })
-        .catch(next)
-    },
-  )
 
   router.post(
     '/translate',

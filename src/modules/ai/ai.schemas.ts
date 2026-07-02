@@ -13,10 +13,6 @@ import {
 
 export const translationLanguageSchema = z.enum(TRANSLATION_LANGUAGE_VALUES)
 
-export const rewriteBodySchema = z.object({
-  draft: z.string().trim().min(1).max(2000),
-})
-
 export const translateBodySchema = z.object({
   messageId: z.string().uuid(),
 })
@@ -49,7 +45,6 @@ export const conversationAnalyticsResponseSchema = z.object({
   conversationSummary: z.string().trim().min(1).max(CONVERSATION_SUMMARY_MAX_LENGTH),
 })
 
-export type RewriteBody = z.infer<typeof rewriteBodySchema>
 export type TranslateBody = z.infer<typeof translateBodySchema>
 export type SuggestReplyBody = z.infer<typeof suggestReplyBodySchema>
 export type ConversationAnalyticsBody = z.infer<typeof conversationAnalyticsBodySchema>

@@ -2,7 +2,6 @@ import { Queue } from 'bullmq'
 
 import type {
   ConversationAnalyticsBody,
-  RewriteBody,
   SuggestReplyBody,
   TranslateBody,
 } from '../../modules/ai/ai.schemas.js'
@@ -16,10 +15,9 @@ export const AI_JOB_NAMES = {
   run: 'run',
 } as const
 
-export type AiJobType = 'rewrite' | 'translate' | 'suggest-reply' | 'conversation-analytics'
+export type AiJobType = 'translate' | 'suggest-reply' | 'conversation-analytics'
 
 export type AiJobPayloadByType = {
-  rewrite: RewriteBody
   translate: TranslateBody
   'suggest-reply': SuggestReplyBody
   'conversation-analytics': ConversationAnalyticsBody

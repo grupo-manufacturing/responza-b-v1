@@ -13,7 +13,6 @@ import {
   normalizeSuggestReplyResponse,
   translationLanguageSchema,
   type ConversationAnalyticsBody,
-  type RewriteBody,
   type SuggestReplyBody,
   type TranslateBody,
 } from './ai.schemas.js'
@@ -31,19 +30,9 @@ import {
   buildSuggestReplySystemPrompt,
   buildSuggestReplyUserPrompt,
 } from './prompts/suggestReply.prompt.js'
-import { buildRewriteSystemPrompt } from './prompts/rewrite.prompt.js'
 import { buildTranslateSystemPrompt } from './prompts/translate.prompt.js'
 import { completeChat, completeChatJson } from './providers/openai.client.js'
 import * as authRepository from '../auth/auth.repository.js'
-
-export async function rewriteDraft(input: RewriteBody) {
-  const rewritten = await completeChat({
-    system: buildRewriteSystemPrompt(),
-    user: input.draft,
-  })
-
-  return { rewritten }
-}
 
 export async function validateTranslateMessage(
   auth: AuthContext,

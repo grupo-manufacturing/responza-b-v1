@@ -6,7 +6,6 @@ import { loadEnv } from '../../shared/config/index.js'
 import { enqueueAiJob, type AiJobType, type AiQueueJobData } from '../../shared/queue/ai.queue.js'
 import {
   analyzeConversation,
-  rewriteDraft,
   suggestReply,
   translateMessage,
   validateAnalyzeConversation,
@@ -25,7 +24,6 @@ import {
 } from './ai.job.store.js'
 import type {
   ConversationAnalyticsBody,
-  RewriteBody,
   SuggestReplyBody,
   TranslateBody,
 } from './ai.schemas.js'
@@ -84,13 +82,6 @@ async function enqueueJob<T extends AiJobType>(
   }
 }
 
-export async function enqueueRewriteJob(
-  auth: AuthContext,
-  input: RewriteBody,
-): Promise<AiJobEnqueueResponse> {
-  return enqueueJob(auth, 'rewrite', input)
-}
-
 export async function enqueueTranslateJob(
   auth: AuthContext,
   input: TranslateBody,
@@ -131,8 +122,6 @@ export async function executeAiQueueJob(data: AiQueueJobData): Promise<unknown> 
   const auth = toAuthContext(data.organizationId)
 
   switch (data.type) {
-    case 'rewrite':
-      return rewriteDraft(data.payload as RewriteBody)
     case 'translate':
       return translateMessage(auth, data.payload as TranslateBody)
     case 'suggest-reply':
