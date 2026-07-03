@@ -29,15 +29,6 @@ export {
   enqueueAgentJob,
 } from './agent.queue.js'
 export {
-  CATALOGUE_JOB_NAMES,
-  CATALOGUE_QUEUE_NAME,
-  closeCatalogueQueue,
-  enqueueCatalogueDeleteJob,
-  enqueueCatalogueIndexJob,
-  type CatalogueDeleteJobData,
-  type CatalogueIndexJobData,
-} from './catalogue.queue.js'
-export {
   attachWorkerLifecycleLogs,
   isDuplicateQueueJobError,
   isQueueJobLastAttempt,
@@ -48,7 +39,6 @@ export {
   aiDefaultJobOptions,
   agentDefaultJobOptions,
   buildQueueJobOptions,
-  catalogueDefaultJobOptions,
   mediaDefaultJobOptions,
   webhookDefaultJobOptions,
 } from './queue.options.js'

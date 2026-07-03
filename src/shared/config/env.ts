@@ -75,18 +75,6 @@ const envSchema = z.object({
   BUSINESS_URL_CONTEXT_MAX_CHARS_PER_URL: z.coerce.number().int().positive().default(2500),
   BUSINESS_URL_MAX_SUBPAGES: z.coerce.number().int().nonnegative().default(5),
   BUSINESS_URL_CONTEXT_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
-  BUSINESS_CATALOGUE_INDEX_ENABLED: z
-    .string()
-    .default('true')
-    .transform((value) => value === 'true' || value === '1'),
-  BUSINESS_CATALOGUE_EXTRACT_MAX_CHARS_PER_FILE: z.coerce.number().int().positive().default(50_000),
-  BUSINESS_CATALOGUE_CHUNK_SIZE_CHARS: z.coerce.number().int().positive().default(800),
-  BUSINESS_CATALOGUE_CHUNK_OVERLAP_CHARS: z.coerce.number().int().nonnegative().default(100),
-  BUSINESS_CATALOGUE_MAX_CHUNKS_PER_ORG: z.coerce.number().int().positive().default(200),
-  BUSINESS_CATALOGUE_CONTEXT_MAX_CHARS: z.coerce.number().int().positive().default(3500),
-  BUSINESS_CATALOGUE_RETRIEVAL_TOP_CHUNKS: z.coerce.number().int().positive().default(6),
-  CATALOGUE_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
-  CATALOGUE_INDEX_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
 })
 

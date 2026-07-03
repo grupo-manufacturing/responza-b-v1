@@ -130,9 +130,7 @@ export async function runAgentJob(data: AgentQueueJobData): Promise<AgentJobResu
   let decision
   try {
     const recentTranscript = await buildRecentTranscript(data.organizationId, data.conversationId)
-    const businessContextLines = await buildAgentBusinessContextLines(data.organizationId, profile, {
-      customerMessage: inboundMessage.content,
-    })
+    const businessContextLines = await buildAgentBusinessContextLines(data.organizationId, profile)
     const raw = await completeChatJson({
       system: buildAgentSystemPrompt(businessContextLines),
       user: buildAgentUserPrompt({

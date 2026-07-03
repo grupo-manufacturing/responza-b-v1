@@ -1,8 +1,6 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import { enqueueCatalogueIndexJob } from '../../shared/queue/catalogue.queue.js'
 import type { CompleteBusinessBody, UpdateBusinessBody } from './business.schemas.js'
-import * as catalogueRepository from './catalogue/catalogue.repository.js'
 import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
 import type { CatalogueFileRecord } from './business.types.js'
@@ -124,14 +122,6 @@ export async function uploadCatalogueFile(
 
   const profile = await businessRepository.addCatalogueFile(auth.organizationId, catalogueFile)
 
-  await enqueueCatalogueIndexJob({
-    organizationId: auth.organizationId,
-    fileId: catalogueFile.id,
-    storagePath: catalogueFile.storagePath,
-    filename: catalogueFile.filename,
-    mimeType: catalogueFile.mimeType,
-  })
-
   return {
     file: toCatalogueFileResponse(catalogueFile),
     profile: toBusinessResponse(profile),
@@ -151,8 +141,6 @@ export async function deleteCatalogueFile(auth: AuthContext, fileId: string) {
       // Profile metadata is already updated; orphaned storage can be cleaned later.
     }
   }
-
-  await catalogueRepository.deleteChunksForFile(auth.organizationId, fileId)
 
   return toBusinessResponse(profile)
 }
