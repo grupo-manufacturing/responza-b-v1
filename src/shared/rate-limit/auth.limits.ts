@@ -46,5 +46,11 @@ export function createAuthRateLimiters() {
       windowSeconds: env.RATE_LIMIT_AUTH_OTP_WINDOW_SECONDS,
       keyGenerator: emailOrIpKey,
     }),
+    refresh: createRateLimitMiddleware({
+      bucket: 'auth-refresh',
+      limit: env.RATE_LIMIT_AUTH_LOGIN_MAX,
+      windowSeconds: env.RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS,
+      keyGenerator: getClientIp,
+    }),
   }
 }

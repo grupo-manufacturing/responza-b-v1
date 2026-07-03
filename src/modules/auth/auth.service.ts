@@ -73,6 +73,10 @@ export const oauthCompleteBodySchema = z.object({
   expiresIn: z.number().int().positive().optional(),
 })
 
+export const refreshBodySchema = z.object({
+  refreshToken: z.string().min(1),
+})
+
 export type RegisterBody = z.infer<typeof registerBodySchema>
 export type LoginBody = z.infer<typeof loginBodySchema>
 export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>
@@ -80,6 +84,13 @@ export type ChangePasswordBody = z.infer<typeof changePasswordBodySchema>
 export type VerifyOtpBody = z.infer<typeof verifyOtpBodySchema>
 export type ResendOtpBody = z.infer<typeof resendOtpBodySchema>
 export type OAuthCompleteBody = z.infer<typeof oauthCompleteBodySchema>
+export type RefreshBody = z.infer<typeof refreshBodySchema>
+
+export type AuthTokenRefreshPayload = {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+}
 
 export type RegisterPendingPayload = {
   requiresVerification: true
@@ -368,6 +379,29 @@ export async function completeOAuthSession(
     input.expiresIn ?? 3600,
     organization,
   )
+}
+
+export async function refreshAuthTokens(refreshToken: string): Promise<AuthTokenRefreshPayload> {
+  const authClient = getSupabaseAuthClient()
+  const { data, error } = await authClient.auth.refreshSession({
+    refresh_token: refreshToken,
+  })
+
+  if (error !== null || data.session === null) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired refresh token')
+  }
+
+  const userId = data.user?.id ?? data.session.user.id
+  const organization = await authRepository.findOrganizationById(userId)
+  if (organization === null) {
+    throw new AppError(403, 'FORBIDDEN', 'No account profile found. Please register first.')
+  }
+
+  return {
+    accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token,
+    expiresIn: data.session.expires_in ?? 3600,
+  }
 }
 
 export async function loginOrganization(input: LoginBody): Promise<AuthSessionPayload> {

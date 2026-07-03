@@ -10,6 +10,7 @@ import {
   changePasswordBodySchema,
   loginBodySchema,
   oauthCompleteBodySchema,
+  refreshBodySchema,
   registerBodySchema,
   resendOtpBodySchema,
   updateProfileBodySchema,
@@ -66,6 +67,20 @@ export function createAuthPublicRouter(): Router {
       })
       .catch(next)
   })
+
+  router.post(
+    '/refresh',
+    rateLimits.refresh,
+    validateRequest({ body: refreshBodySchema }),
+    (req, res, next) => {
+      void authService
+        .refreshAuthTokens(req.body.refreshToken)
+        .then((payload) => {
+          res.status(200).json(payload)
+        })
+        .catch(next)
+    },
+  )
 
   router.post(
     '/verify-otp',
