@@ -42,3 +42,10 @@ export function agentDefaultJobOptions(): JobsOptions {
     backoffDelayMs: 2000,
   })
 }
+
+export function catalogueDefaultJobOptions(): JobsOptions {
+  return buildQueueJobOptions({
+    attempts: 3,
+    backoffDelayMs: 2000,
+  })
+}

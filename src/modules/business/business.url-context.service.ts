@@ -3,6 +3,7 @@ import { logger } from '../../shared/logger.js'
 import { getRedisClient } from '../../shared/redis/client.js'
 import { buildCacheKey, CACHE_NAMESPACES } from '../../shared/redis/keys.js'
 import { buildBusinessContextLines } from './business.context.js'
+import { buildCatalogueContextLines } from './catalogue/catalogue.context.service.js'
 import type { BusinessProfileRecord } from './business.repository.js'
 import {
   fetchPublicUrlExcerpt,
@@ -146,33 +147,58 @@ async function buildFetchedUrlContextLines(profile: BusinessProfileRecord): Prom
 export async function buildAgentBusinessContextLines(
   organizationId: string,
   profile: BusinessProfileRecord,
+  options?: { customerMessage?: string },
 ): Promise<string[]> {
   const baseLines = buildBusinessContextLines(profile)
   const cacheKey = urlContextCacheKey(organizationId, profile.updated_at)
 
+  let fetchedUrlLines: string[] = []
   const cachedUrlLines = await readCachedUrlContextLines(cacheKey)
   if (cachedUrlLines !== null) {
-    return mergeBusinessContextLines(baseLines, cachedUrlLines)
+    fetchedUrlLines = cachedUrlLines
+  } else {
+    try {
+      fetchedUrlLines = await buildFetchedUrlContextLines(profile)
+      await writeCachedUrlContextLines(cacheKey, fetchedUrlLines)
+    } catch (error: unknown) {
+      logger.warn('[business] Failed to fetch URL context for agent', {
+        organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
-  let fetchedUrlLines: string[] = []
+  let catalogueLines: string[] = []
   try {
-    fetchedUrlLines = await buildFetchedUrlContextLines(profile)
-    await writeCachedUrlContextLines(cacheKey, fetchedUrlLines)
+    catalogueLines = await buildCatalogueContextLines(
+      organizationId,
+      profile,
+      options?.customerMessage,
+    )
   } catch (error: unknown) {
-    logger.warn('[business] Failed to fetch URL context for agent', {
+    logger.warn('[business] Failed to build catalogue context for agent', {
       organizationId,
       error: error instanceof Error ? error.message : String(error),
     })
   }
 
-  return mergeBusinessContextLines(baseLines, fetchedUrlLines)
+  return mergeBusinessContextLines(baseLines, fetchedUrlLines, catalogueLines)
 }
 
-function mergeBusinessContextLines(baseLines: string[], fetchedUrlLines: string[]): string[] {
-  if (fetchedUrlLines.length === 0) {
-    return baseLines
+function mergeBusinessContextLines(
+  baseLines: string[],
+  fetchedUrlLines: string[],
+  catalogueLines: string[],
+): string[] {
+  const merged = [...baseLines]
+
+  if (fetchedUrlLines.length > 0) {
+    merged.push('', 'Fetched page content (use together with profile fields above):', ...fetchedUrlLines)
   }
 
-  return [...baseLines, '', 'Fetched page content (use together with profile fields above):', ...fetchedUrlLines]
+  if (catalogueLines.length > 0) {
+    merged.push('', ...catalogueLines)
+  }
+
+  return merged
 }

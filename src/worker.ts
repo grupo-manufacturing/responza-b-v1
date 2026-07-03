@@ -5,6 +5,10 @@ import { processAiQueueJob } from './modules/ai/ai.jobs.service.js'
 import { processAgentQueueJob } from './modules/agent/agent.jobs.service.js'
 import type { AgentQueueJobData } from './modules/agent/agent.schemas.js'
 import { processInboundMediaIngestionJob } from './modules/media/media.ingestion.worker.js'
+import {
+  processCatalogueDeleteJob,
+  processCatalogueIndexJob,
+} from './modules/business/catalogue/catalogue.index.worker.js'
 import { processInstagramWebhookJob, processWhatsAppWebhookJob } from './modules/messaging/webhook.worker.js'
 import { logger } from './shared/logger.js'
 import {
@@ -24,6 +28,13 @@ import {
   closeMediaQueue,
   type InboundMediaIngestionJobData,
 } from './shared/queue/media.queue.js'
+import {
+  CATALOGUE_JOB_NAMES,
+  CATALOGUE_QUEUE_NAME,
+  closeCatalogueQueue,
+  type CatalogueDeleteJobData,
+  type CatalogueIndexJobData,
+} from './shared/queue/catalogue.queue.js'
 import {
   WEBHOOK_JOB_NAMES,
   WEBHOOK_QUEUE_NAME,
@@ -142,10 +153,40 @@ const agentWorker = new Worker(
   },
 )
 
+const catalogueWorker = new Worker(
+  CATALOGUE_QUEUE_NAME,
+  async (job) => {
+    await withJobTimeout(
+      env.CATALOGUE_INDEX_JOB_TIMEOUT_MS,
+      async () => {
+        if (job.name === CATALOGUE_JOB_NAMES.index) {
+          await processCatalogueIndexJob(job.data as CatalogueIndexJobData)
+          logger.info(`Catalogue index job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
+
+        if (job.name === CATALOGUE_JOB_NAMES.delete) {
+          await processCatalogueDeleteJob(job.data as CatalogueDeleteJobData)
+          logger.info(`Catalogue delete job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
+
+        throw new Error(`Unhandled catalogue job type: ${job.name}`)
+      },
+      `Catalogue index job timed out after ${env.CATALOGUE_INDEX_JOB_TIMEOUT_MS}ms`,
+    )
+  },
+  {
+    connection: getRedisConnectionOptions(),
+    concurrency: env.CATALOGUE_WORKER_CONCURRENCY,
+  },
+)
+
 attachWorkerLifecycleLogs(webhookWorker, WEBHOOK_QUEUE_NAME)
 attachWorkerLifecycleLogs(mediaWorker, MEDIA_QUEUE_NAME)
 attachWorkerLifecycleLogs(aiWorker, AI_QUEUE_NAME)
 attachWorkerLifecycleLogs(agentWorker, AGENT_QUEUE_NAME)
+attachWorkerLifecycleLogs(catalogueWorker, CATALOGUE_QUEUE_NAME)
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) {
@@ -158,10 +199,12 @@ async function shutdown(signal: string): Promise<void> {
   await mediaWorker.close()
   await aiWorker.close()
   await agentWorker.close()
+  await catalogueWorker.close()
   await closeWebhookQueue()
   await closeMediaQueue()
   await closeAiQueue()
   await closeAgentQueue()
+  await closeCatalogueQueue()
   await closeRedisConnection()
 }
 
@@ -185,5 +228,5 @@ process.on('SIGTERM', () => {
 })
 
 logger.info(
-  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY}, ai: ${AI_QUEUE_NAME} x${env.AI_WORKER_CONCURRENCY}, agent: ${AGENT_QUEUE_NAME} x${env.AGENT_WORKER_CONCURRENCY})`,
+  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY}, ai: ${AI_QUEUE_NAME} x${env.AI_WORKER_CONCURRENCY}, agent: ${AGENT_QUEUE_NAME} x${env.AGENT_WORKER_CONCURRENCY}, catalogue: ${CATALOGUE_QUEUE_NAME} x${env.CATALOGUE_WORKER_CONCURRENCY})`,
 )
