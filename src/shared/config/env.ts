@@ -66,6 +66,14 @@ const envSchema = z.object({
   AGENT_JOB_DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(4000),
   AGENT_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
   AGENT_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(25000),
+  BUSINESS_URL_FETCH_ENABLED: z
+    .string()
+    .default('true')
+    .transform((value) => value === 'true' || value === '1'),
+  BUSINESS_URL_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+  BUSINESS_URL_FETCH_MAX_BYTES: z.coerce.number().int().positive().default(500_000),
+  BUSINESS_URL_CONTEXT_MAX_CHARS_PER_URL: z.coerce.number().int().positive().default(2500),
+  BUSINESS_URL_CONTEXT_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
 })
 

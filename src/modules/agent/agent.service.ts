@@ -3,6 +3,7 @@ import { logger } from '../../shared/logger.js'
 import { buildSuggestReplyTranscript } from '../ai/ai.utils.js'
 import { completeChatJson } from '../ai/providers/openai.client.js'
 import * as businessRepository from '../business/business.repository.js'
+import { buildAgentBusinessContextLines } from '../business/business.url-context.service.js'
 import * as inboxRepository from '../inbox/inbox.repository.js'
 import { sendAgentReply } from './agent.outbound.service.js'
 import { AGENT_CONTEXT_MESSAGE_LIMIT } from './agent.constants.js'
@@ -129,8 +130,9 @@ export async function runAgentJob(data: AgentQueueJobData): Promise<AgentJobResu
   let decision
   try {
     const recentTranscript = await buildRecentTranscript(data.organizationId, data.conversationId)
+    const businessContextLines = await buildAgentBusinessContextLines(data.organizationId, profile)
     const raw = await completeChatJson({
-      system: buildAgentSystemPrompt(profile),
+      system: buildAgentSystemPrompt(businessContextLines),
       user: buildAgentUserPrompt({
         customerMessage: inboundMessage.content,
         recentTranscript,
