@@ -11,10 +11,63 @@ const BLOCKED_HOSTNAMES = new Set([
 const PRIVATE_IPV4_PATTERN =
   /^(10\.|127\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.)/
 
+const RELEVANT_PATH_KEYWORDS = [
+  'about',
+  'about-us',
+  'about_us',
+  'who-we-are',
+  'our-story',
+  'company',
+  'privacy',
+  'privacy-policy',
+  'privacy_policy',
+  'terms',
+  'terms-and-conditions',
+  'terms-conditions',
+  'terms-of-service',
+  'terms-of-use',
+  'terms-condition',
+  'tos',
+  'contact',
+  'contact-us',
+  'contact_us',
+  'faq',
+  'faqs',
+  'help',
+  'support',
+  'services',
+  'products',
+] as const
+
+const SKIPPED_PATH_KEYWORDS = [
+  'login',
+  'signin',
+  'sign-in',
+  'signup',
+  'sign-up',
+  'register',
+  'cart',
+  'checkout',
+  'account',
+  'admin',
+  'wp-admin',
+  'blog',
+  'tag',
+  'category',
+  'author',
+] as const
+
 export type FetchedUrlExcerpt = {
   url: string
   title: string | null
   excerpt: string
+  pageLabel: string
+}
+
+export type FetchedUrlHtml = {
+  url: string
+  html: string
+  title: string | null
 }
 
 export function assertSafePublicHttpUrl(rawUrl: string): URL {
@@ -131,10 +184,125 @@ function buildExcerpt(html: string, maxChars: number): string {
   return `${combined.slice(0, maxChars).trim()}…`
 }
 
-export async function fetchPublicUrlExcerpt(
-  rawUrl: string,
-  maxChars: number,
-): Promise<FetchedUrlExcerpt | null> {
+function normalizeSiteHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/^www\./, '')
+}
+
+function isSameSiteUrl(base: URL, candidate: URL): boolean {
+  return normalizeSiteHostname(base.hostname) === normalizeSiteHostname(candidate.hostname)
+}
+
+function shouldSkipDiscoveredPath(pathname: string): boolean {
+  const path = pathname.toLowerCase()
+  return SKIPPED_PATH_KEYWORDS.some((keyword) => path.includes(keyword))
+}
+
+function scoreDiscoveredLink(pathname: string, anchorText: string): number {
+  const path = pathname.toLowerCase()
+  const text = anchorText.toLowerCase().replace(/\s+/g, ' ').trim()
+  let score = 0
+
+  for (const keyword of RELEVANT_PATH_KEYWORDS) {
+    const spaced = keyword.replace(/-/g, ' ')
+    if (path.includes(keyword)) {
+      score += 12
+    }
+    if (text.includes(keyword) || text.includes(spaced)) {
+      score += 8
+    }
+  }
+
+  return score
+}
+
+function pageLabelFromUrl(url: URL): string {
+  const segments = url.pathname.split('/').filter((segment) => segment.length > 0)
+  if (segments.length === 0) {
+    return 'home'
+  }
+
+  return segments[segments.length - 1] ?? 'page'
+}
+
+function extractAnchorLinks(html: string): Array<{ href: string; text: string }> {
+  const links: Array<{ href: string; text: string }> = []
+  const pattern = /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi
+
+  for (const match of html.matchAll(pattern)) {
+    const href = match[1]?.trim()
+    if (href === undefined || href.length === 0) {
+      continue
+    }
+
+    const text = match[2]
+      ?.replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    links.push({
+      href,
+      text: text ?? '',
+    })
+  }
+
+  return links
+}
+
+export function discoverRelevantSameSiteLinks(
+  siteUrl: string,
+  html: string,
+  maxLinks: number,
+): string[] {
+  let base: URL
+  try {
+    base = assertSafePublicHttpUrl(siteUrl)
+  } catch {
+    return []
+  }
+
+  const ranked = new Map<string, number>()
+
+  for (const link of extractAnchorLinks(html)) {
+    if (
+      link.href.startsWith('mailto:') ||
+      link.href.startsWith('tel:') ||
+      link.href.startsWith('javascript:')
+    ) {
+      continue
+    }
+
+    let resolved: URL
+    try {
+      resolved = assertSafePublicHttpUrl(new URL(link.href, base).toString())
+    } catch {
+      continue
+    }
+
+    if (!isSameSiteUrl(base, resolved)) {
+      continue
+    }
+
+    if (shouldSkipDiscoveredPath(resolved.pathname)) {
+      continue
+    }
+
+    const score = scoreDiscoveredLink(resolved.pathname, link.text)
+    if (score <= 0) {
+      continue
+    }
+
+    const canonical = resolved.toString()
+    const existing = ranked.get(canonical) ?? 0
+    ranked.set(canonical, Math.max(existing, score))
+  }
+
+  return [...ranked.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, maxLinks)
+    .map(([url]) => url)
+}
+
+export async function fetchPublicUrlHtml(rawUrl: string): Promise<FetchedUrlHtml | null> {
   const env = loadEnv()
   if (!env.BUSINESS_URL_FETCH_ENABLED) {
     return null
@@ -179,24 +347,85 @@ export async function fetchPublicUrlExcerpt(
       return null
     }
 
-    const body = await response.text()
-    if (body.length > env.BUSINESS_URL_FETCH_MAX_BYTES) {
-      return null
-    }
-
-    const excerpt = buildExcerpt(body, maxChars)
-    if (excerpt.length === 0) {
+    const html = await response.text()
+    if (html.length > env.BUSINESS_URL_FETCH_MAX_BYTES) {
       return null
     }
 
     return {
       url: parsed.toString(),
-      title: extractTitle(body),
-      excerpt,
+      html,
+      title: extractTitle(html),
     }
   } catch {
     return null
   } finally {
     clearTimeout(timeout)
   }
+}
+
+function htmlToExcerpt(page: FetchedUrlHtml, maxChars: number, pageLabel: string): FetchedUrlExcerpt | null {
+  const excerpt = buildExcerpt(page.html, maxChars)
+  if (excerpt.length === 0) {
+    return null
+  }
+
+  return {
+    url: page.url,
+    title: page.title,
+    excerpt,
+    pageLabel,
+  }
+}
+
+export async function fetchPublicUrlExcerpt(
+  rawUrl: string,
+  maxChars: number,
+  pageLabel = 'page',
+): Promise<FetchedUrlExcerpt | null> {
+  const page = await fetchPublicUrlHtml(rawUrl)
+  if (page === null) {
+    return null
+  }
+
+  return htmlToExcerpt(page, maxChars, pageLabel)
+}
+
+export async function fetchWebsiteWithRelevantSubpages(
+  rawUrl: string,
+  maxCharsPerPage: number,
+  maxSubpages: number,
+): Promise<FetchedUrlExcerpt[]> {
+  const home = await fetchPublicUrlHtml(rawUrl)
+  if (home === null) {
+    return []
+  }
+
+  const homeExcerpt = htmlToExcerpt(home, maxCharsPerPage, 'home')
+  const excerpts: FetchedUrlExcerpt[] = homeExcerpt !== null ? [homeExcerpt] : []
+
+  const subpageUrls = discoverRelevantSameSiteLinks(home.url, home.html, maxSubpages)
+  if (subpageUrls.length === 0) {
+    return excerpts
+  }
+
+  const subpageResults = await Promise.all(
+    subpageUrls.map(async (url) => {
+      const page = await fetchPublicUrlHtml(url)
+      if (page === null) {
+        return null
+      }
+
+      const label = pageLabelFromUrl(new URL(page.url))
+      return htmlToExcerpt(page, maxCharsPerPage, label)
+    }),
+  )
+
+  for (const excerpt of subpageResults) {
+    if (excerpt !== null) {
+      excerpts.push(excerpt)
+    }
+  }
+
+  return excerpts
 }

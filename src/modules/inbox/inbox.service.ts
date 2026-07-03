@@ -44,6 +44,7 @@ import * as usageService from '../subscription/usage.service.js'
 import {
   assertOutboundMediaStoragePath,
   resolveMessageMediaUrl,
+  scheduleInboundMediaRepair,
   storeOutboundConversationMedia,
 } from '../media/media.service.js'
 import type { InboundMediaContentType } from '../media/media.constants.js'
@@ -247,6 +248,23 @@ function toParticipantResponse(participant: ParticipantRecord) {
 }
 
 async function toMessageResponse(message: MessageRecord) {
+  if (
+    message.storage_path !== null &&
+    message.direction === 'inbound' &&
+    isInboundMediaContentType(message.content_type)
+  ) {
+    const storedObjectExists = await messageMediaExists(message.storage_path)
+    if (!storedObjectExists) {
+      void scheduleInboundMediaRepair(message).catch((error: unknown) => {
+        logger.warn('Failed to schedule inbound media repair', {
+          messageId: message.id,
+          storagePath: message.storage_path,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
+    }
+  }
+
   const mediaUrl = await resolveMessageMediaUrl(message.storage_path, {
     contentType: message.content_type,
     mimeType: message.mime_type,

@@ -2,6 +2,7 @@ import * as inboxRepository from '../inbox/inbox.repository.js'
 import { storeInboundInstagramMedia, storeInboundWhatsAppMedia } from './media.service.js'
 import type { InboundMediaIngestionJobData } from '../../shared/queue/media.queue.js'
 import { logger } from '../../shared/logger.js'
+import { messageMediaExists } from '../../shared/storage/index.js'
 
 export async function processInboundMediaIngestionJob(
   data: InboundMediaIngestionJobData,
@@ -21,7 +22,21 @@ export async function processInboundMediaIngestionJob(
   }
 
   if (existing.storage_path !== null) {
-    return
+    const storedObjectExists = await messageMediaExists(existing.storage_path)
+    if (storedObjectExists) {
+      return
+    }
+
+    logger.warn('Inbound media ingestion repairing missing storage object', {
+      messageId: data.messageId,
+      storagePath: existing.storage_path,
+      platform: data.platform,
+    })
+
+    await inboxRepository.clearInboundMessageStoragePath({
+      organization_id: data.organizationId,
+      message_id: data.messageId,
+    })
   }
 
   const stored =

@@ -23,7 +23,12 @@ export async function uploadMessageMedia(input: {
   })
 
   if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store message media')
+    const detail = error.message ?? 'Unknown storage error'
+    if (detail.includes('already exists')) {
+      return
+    }
+
+    throw new AppError(500, 'INTERNAL_ERROR', `Failed to store message media: ${detail}`)
   }
 }
 
@@ -49,8 +54,7 @@ export async function messageMediaExists(storagePath: string): Promise<boolean> 
   const filename = lastSlash >= 0 ? storagePath.slice(lastSlash + 1) : storagePath
 
   const { data, error } = await client.storage.from(bucket).list(folder, {
-    search: filename,
-    limit: 1,
+    limit: 1000,
   })
 
   if (error !== null) {
@@ -74,7 +78,8 @@ export async function createMessageMediaSignedUrl(
     })
 
   if (error !== null || data?.signedUrl === undefined) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create media URL')
+    const detail = error?.message ?? 'Unknown storage error'
+    throw new AppError(500, 'INTERNAL_ERROR', `Failed to create media URL: ${detail}`)
   }
 
   return data.signedUrl

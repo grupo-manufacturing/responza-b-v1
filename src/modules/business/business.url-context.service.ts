@@ -4,7 +4,11 @@ import { getRedisClient } from '../../shared/redis/client.js'
 import { buildCacheKey, CACHE_NAMESPACES } from '../../shared/redis/keys.js'
 import { buildBusinessContextLines } from './business.context.js'
 import type { BusinessProfileRecord } from './business.repository.js'
-import { fetchPublicUrlExcerpt } from './business.url-fetch.js'
+import {
+  fetchPublicUrlExcerpt,
+  fetchWebsiteWithRelevantSubpages,
+  type FetchedUrlExcerpt,
+} from './business.url-fetch.js'
 
 type UrlSource = {
   label: string
@@ -12,7 +16,7 @@ type UrlSource = {
 }
 
 function urlContextCacheKey(organizationId: string, profileUpdatedAt: string): string {
-  return buildCacheKey(CACHE_NAMESPACES.businessUrlContext, organizationId, profileUpdatedAt)
+  return buildCacheKey(CACHE_NAMESPACES.businessUrlContext, 'v2', organizationId, profileUpdatedAt)
 }
 
 async function readCachedUrlContextLines(key: string): Promise<string[] | null> {
@@ -42,7 +46,45 @@ async function writeCachedUrlContextLines(key: string, lines: string[]): Promise
   }
 }
 
-async function fetchUrlSourceLines(source: UrlSource, maxCharsPerUrl: number): Promise<string[]> {
+function formatFetchedExcerptLines(sourceLabel: string, fetched: FetchedUrlExcerpt): string[] {
+  const pageName = fetched.pageLabel === 'home' ? 'home' : fetched.pageLabel
+  const titleLine =
+    fetched.title !== null && fetched.title.length > 0 ? `Title: ${fetched.title}` : null
+
+  return [
+    `${sourceLabel} (${pageName}) (${fetched.url}):`,
+    ...(titleLine !== null ? [titleLine] : []),
+    fetched.excerpt,
+  ]
+}
+
+async function fetchWebsiteSourceLines(
+  websiteUrl: string,
+  maxCharsPerPage: number,
+  maxSubpages: number,
+): Promise<string[]> {
+  const pages = await fetchWebsiteWithRelevantSubpages(websiteUrl, maxCharsPerPage, maxSubpages)
+  if (pages.length === 0) {
+    return [
+      `Website content (${websiteUrl}): Could not fetch readable content from this site. Do not assume details from this URL.`,
+    ]
+  }
+
+  const lines: string[] = []
+  for (const page of pages) {
+    if (lines.length > 0) {
+      lines.push('')
+    }
+    lines.push(...formatFetchedExcerptLines('Website content', page))
+  }
+
+  return lines
+}
+
+async function fetchSingleUrlSourceLines(
+  source: UrlSource,
+  maxCharsPerUrl: number,
+): Promise<string[]> {
   if (source.url === null || source.url.trim().length === 0) {
     return []
   }
@@ -54,14 +96,7 @@ async function fetchUrlSourceLines(source: UrlSource, maxCharsPerUrl: number): P
     ]
   }
 
-  const titleLine =
-    fetched.title !== null && fetched.title.length > 0 ? `Title: ${fetched.title}` : null
-
-  return [
-    `${source.label} (${fetched.url}):`,
-    ...(titleLine !== null ? [titleLine] : []),
-    fetched.excerpt,
-  ]
+  return formatFetchedExcerptLines(source.label, fetched)
 }
 
 async function buildFetchedUrlContextLines(profile: BusinessProfileRecord): Promise<string[]> {
@@ -70,27 +105,38 @@ async function buildFetchedUrlContextLines(profile: BusinessProfileRecord): Prom
     return []
   }
 
-  const sources: UrlSource[] = [
-    { label: 'Website content', url: profile.website_url },
+  const lines: string[] = []
+
+  if (profile.website_url !== null && profile.website_url.trim().length > 0) {
+    const websiteLines = await fetchWebsiteSourceLines(
+      profile.website_url,
+      env.BUSINESS_URL_CONTEXT_MAX_CHARS_PER_URL,
+      env.BUSINESS_URL_MAX_SUBPAGES,
+    )
+    if (websiteLines.length > 0) {
+      lines.push(...websiteLines)
+    }
+  }
+
+  const socialSources: UrlSource[] = [
     { label: 'Facebook page content', url: profile.facebook_page_url },
     { label: 'Instagram page content', url: profile.instagram_page_url },
   ].filter((source) => source.url !== null && source.url.trim().length > 0)
 
-  if (sources.length === 0) {
-    return []
-  }
+  if (socialSources.length > 0) {
+    const socialResults = await Promise.all(
+      socialSources.map((source) =>
+        fetchSingleUrlSourceLines(source, env.BUSINESS_URL_CONTEXT_MAX_CHARS_PER_URL),
+      ),
+    )
 
-  const results = await Promise.all(
-    sources.map((source) => fetchUrlSourceLines(source, env.BUSINESS_URL_CONTEXT_MAX_CHARS_PER_URL)),
-  )
-
-  const lines: string[] = []
-  for (const sourceLines of results) {
-    if (sourceLines.length > 0) {
-      if (lines.length > 0) {
-        lines.push('')
+    for (const sourceLines of socialResults) {
+      if (sourceLines.length > 0) {
+        if (lines.length > 0) {
+          lines.push('')
+        }
+        lines.push(...sourceLines)
       }
-      lines.push(...sourceLines)
     }
   }
 

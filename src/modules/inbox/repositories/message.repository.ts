@@ -239,6 +239,22 @@ export async function updateMessageDeliveryStatus(
   return normalizeMessageRecord(data)
 }
 
+export async function clearInboundMessageStoragePath(input: {
+  organization_id: string
+  message_id: string
+}): Promise<void> {
+  const client = getSupabaseAdminClient()
+  const { error } = await client
+    .from('messages')
+    .update({ storage_path: null })
+    .eq('organization_id', input.organization_id)
+    .eq('id', input.message_id)
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to clear message storage path')
+  }
+}
+
 export async function updateInboundMessageMedia(input: {
   organization_id: string
   message_id: string

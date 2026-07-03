@@ -2,9 +2,20 @@ import { randomUUID } from 'node:crypto'
 
 import { fetchInstagramMediaBinary } from '../../platforms/instagram/fetchMedia.js'
 import { fetchWhatsAppMediaBinary } from '../../platforms/whatsapp/fetchMedia.js'
+import {
+  getInstagramCredentialsForOrganization,
+  getWhatsAppCredentialsForOrganization,
+} from '../integrations/credentials.service.js'
 import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
-import { createMessageMediaSignedUrl, uploadMessageMedia } from '../../shared/storage/index.js'
+import { getRedisClient } from '../../shared/redis/client.js'
+import { enqueueInboundMediaIngestionJob } from '../../shared/queue/index.js'
+import {
+  createMessageMediaSignedUrl,
+  getMessageMediaBucketName,
+  messageMediaExists,
+  uploadMessageMedia,
+} from '../../shared/storage/index.js'
 import {
   buildMessageMediaStoragePath,
   buildMediaDownloadFilename,
@@ -199,6 +210,11 @@ export async function resolveMessageMediaUrl(
     return null
   }
 
+  const exists = await messageMediaExists(storagePath)
+  if (!exists) {
+    return null
+  }
+
   try {
     const download =
       options?.contentType === 'document'
@@ -213,10 +229,86 @@ export async function resolveMessageMediaUrl(
   } catch (error) {
     logger.warn('Failed to create signed media URL', {
       storagePath,
+      bucket: getMessageMediaBucketName(),
       error: error instanceof Error ? error.message : String(error),
     })
     return null
   }
+}
+
+const MEDIA_REPAIR_DEDUP_TTL_SECONDS = 60 * 60
+
+export async function scheduleInboundMediaRepair(message: {
+  id: string
+  organization_id: string
+  conversation_id: string
+  direction: string
+  platform_message_id: string | null
+  content_type: string
+  storage_path: string | null
+  platform_media_id: string | null
+  mime_type: string | null
+}): Promise<void> {
+  if (message.direction !== 'inbound' || message.content_type === 'text') {
+    return
+  }
+
+  if (message.storage_path === null || message.storage_path.length === 0) {
+    return
+  }
+
+  if (
+    message.platform_media_id === null ||
+    message.platform_media_id.length === 0 ||
+    message.platform_message_id === null ||
+    message.platform_message_id.length === 0
+  ) {
+    return
+  }
+
+  const dedupKey = `media-repair:${message.id}`
+  const acquired = await getRedisClient().set(
+    dedupKey,
+    '1',
+    'EX',
+    MEDIA_REPAIR_DEDUP_TTL_SECONDS,
+    'NX',
+  )
+  if (acquired === null) {
+    return
+  }
+
+  const platformMediaId = message.platform_media_id
+  const isInstagram =
+    platformMediaId.startsWith('http://') || platformMediaId.startsWith('https://')
+
+  const credentials = isInstagram
+    ? await getInstagramCredentialsForOrganization(message.organization_id)
+    : await getWhatsAppCredentialsForOrganization(message.organization_id)
+
+  if (credentials === null) {
+    logger.warn('Cannot repair missing message media: integration credentials unavailable', {
+      messageId: message.id,
+      organizationId: message.organization_id,
+    })
+    return
+  }
+
+  await enqueueInboundMediaIngestionJob({
+    organizationId: message.organization_id,
+    conversationId: message.conversation_id,
+    messageId: message.id,
+    platform: isInstagram ? 'instagram' : 'whatsapp',
+    contentType: message.content_type as InboundMediaContentType,
+    platformMessageId: message.platform_message_id,
+    accessToken: credentials.accessToken,
+    platformMediaId: isInstagram ? undefined : platformMediaId,
+    mediaUrl: isInstagram ? platformMediaId : undefined,
+    mimeTypeHint: message.mime_type,
+    filename: null,
+  })
+
+  logger.info(`Scheduled inbound media repair for message ${message.id}`)
 }
 
 export type StoredOutboundMediaResult = {
