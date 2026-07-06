@@ -2,10 +2,8 @@ import { Router } from 'express'
 
 import { validateRequest } from '../../shared/middleware/index.js'
 import {
-  activateSubscriptionBodySchema,
   cancelSubscriptionBodySchema,
   checkoutBodySchema,
-  type ActivateSubscriptionBody,
   type CancelSubscriptionBody,
   type CheckoutBody,
 } from './subscription.schemas.js'
@@ -52,17 +50,6 @@ export function createSubscriptionRouter(): Router {
         .catch(next)
     },
   )
-
-  router.post('/activate', validateRequest({ body: activateSubscriptionBodySchema }), (req, res, next) => {
-    const { plan } = req.body as ActivateSubscriptionBody
-
-    void subscriptionService
-      .activateSubscription(req.auth!.organizationId, plan)
-      .then((subscription) => {
-        res.status(200).json({ subscription })
-      })
-      .catch(next)
-  })
 
   router.post('/sync', (req, res, next) => {
     void subscriptionService

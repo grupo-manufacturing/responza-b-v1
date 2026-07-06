@@ -3,6 +3,7 @@ import { resolveEffectiveSubscriptionStatus, toSubscriptionResponse } from '../.
 import { AppError } from '../../shared/errors/index.js'
 import {
   getBillingPlanCatalogEntry,
+  getRazorpayKeyMode,
   isRazorpayBillingConfigured,
   isRazorpayConfigured,
   listBillingPlansPublic,
@@ -16,12 +17,6 @@ import * as usageService from './usage.service.js'
 
 export { invalidateSubscriptionCache } from './subscription.cache.js'
 export type { SubscriptionCachePayload } from './subscription.cache.js'
-
-function addDays(from: Date, days: number): Date {
-  const result = new Date(from)
-  result.setUTCDate(result.getUTCDate() + days)
-  return result
-}
 
 async function loadSubscriptionForOrganization(
   organizationId: string,
@@ -70,36 +65,6 @@ export async function getSubscriptionForOrganization(organizationId: string) {
   return subscription
 }
 
-export async function activateSubscription(organizationId: string, planKey: BillingPlanKey) {
-  const env = loadEnv()
-  const organization = await subscriptionRepository.findOrganizationById(organizationId)
-  if (organization === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Organization not found')
-  }
-
-  const plan = getBillingPlanCatalogEntry(planKey)
-  const periodStartsAt = new Date()
-  const periodEndsAt = addDays(periodStartsAt, env.SUBSCRIPTION_PERIOD_DAYS)
-
-  const updated = await subscriptionRepository.activatePaidSubscription(organizationId, {
-    plan: plan.key,
-    conversationLimit: plan.conversationLimit,
-    periodStartsAt: periodStartsAt.toISOString(),
-    periodEndsAt: periodEndsAt.toISOString(),
-    endTrial: organization.subscription_status === 'trialing',
-  })
-
-  const usage = await usageService.getConversationUsageSummary(updated)
-
-  const subscription = {
-    ...toSubscriptionResponse(updated, updated.plan),
-    ...usage,
-  }
-
-  await subscriptionCache.setCachedSubscription(organizationId, subscription)
-  return subscription
-}
-
 export function getBillingPlansCatalog() {
   const env = loadEnv()
 
@@ -107,6 +72,7 @@ export function getBillingPlansCatalog() {
     plans: listBillingPlansPublic(),
     razorpayConfigured: isRazorpayConfigured(env),
     checkoutAvailable: isRazorpayBillingConfigured(env),
+    razorpayMode: getRazorpayKeyMode(env),
   }
 }
 

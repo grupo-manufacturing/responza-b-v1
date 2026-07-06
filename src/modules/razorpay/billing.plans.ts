@@ -5,6 +5,8 @@ export const BILLING_PLAN_KEYS = ['basic', 'premium', 'scale', 'enterprise'] as 
 
 export type BillingPlanKey = (typeof BILLING_PLAN_KEYS)[number]
 
+export type RazorpayKeyMode = 'test' | 'live' | 'unknown'
+
 export type BillingPlanCatalogEntry = {
   readonly key: BillingPlanKey
   readonly label: string
@@ -72,6 +74,25 @@ export function isBillingPlanKey(value: string): value is BillingPlanKey {
 
 export function isRazorpayConfigured(env: Env): boolean {
   return env.RAZORPAY_KEY_ID.length > 0 && env.RAZORPAY_KEY_SECRET.length > 0
+}
+
+export function resolveRazorpayKeyMode(keyId: string): RazorpayKeyMode {
+  const normalized = keyId.trim()
+  if (normalized.startsWith('rzp_test_')) {
+    return 'test'
+  }
+  if (normalized.startsWith('rzp_live_')) {
+    return 'live'
+  }
+  return 'unknown'
+}
+
+export function getRazorpayKeyMode(env: Env): RazorpayKeyMode {
+  if (!isRazorpayConfigured(env)) {
+    return 'unknown'
+  }
+
+  return resolveRazorpayKeyMode(env.RAZORPAY_KEY_ID)
 }
 
 export function isRazorpayBillingConfigured(env: Env): boolean {
