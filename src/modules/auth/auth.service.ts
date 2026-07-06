@@ -11,11 +11,6 @@ import { TRANSLATION_LANGUAGES } from '../ai/ai.constants.js'
 import * as authCache from './auth.cache.js'
 import * as authRepository from './auth.repository.js'
 import { translationLanguageSchema } from '../ai/ai.schemas.js'
-import { assertCanEnableBusinessAgent } from '../agent/agent.settings.service.js'
-import {
-  agentDailyReplyLimit,
-  getAgentRepliesUsedToday,
-} from '../agent/agent.limits.js'
 import type { OrganizationRecord } from '../subscription/subscription.repository.js'
 
 const emailFieldSchema = z.string().trim().email().transform((value) => value.toLowerCase())
@@ -35,13 +30,9 @@ export const updateProfileBodySchema = z
   .object({
     name: z.string().trim().min(1).max(160).optional(),
     preferredTranslationLanguage: translationLanguageSchema.nullable().optional(),
-    agentEnabled: z.boolean().optional(),
   })
   .refine(
-    (body) =>
-      body.name !== undefined ||
-      body.preferredTranslationLanguage !== undefined ||
-      body.agentEnabled !== undefined,
+    (body) => body.name !== undefined || body.preferredTranslationLanguage !== undefined,
     { message: 'At least one field is required' },
   )
 
@@ -105,7 +96,7 @@ function toAuthContext(organization: Pick<OrganizationRecord, 'id' | 'email' | '
   }
 }
 
-function toOrganizationSummaryBase(organization: OrganizationRecord) {
+function toOrganizationSummary(organization: OrganizationRecord) {
   return {
     id: organization.id,
     email: organization.email,
@@ -113,17 +104,6 @@ function toOrganizationSummaryBase(organization: OrganizationRecord) {
     plan: organization.plan,
     preferredTranslationLanguage: organization.preferred_translation_language ?? null,
     emailVerified: organization.email_verified,
-    agentEnabled: organization.agent_enabled,
-  }
-}
-
-async function buildOrganizationSummary(organization: OrganizationRecord) {
-  const agentRepliesUsedToday = await getAgentRepliesUsedToday(organization.id)
-
-  return {
-    ...toOrganizationSummaryBase(organization),
-    agentDailyLimit: agentDailyReplyLimit(),
-    agentRepliesUsedToday,
   }
 }
 
@@ -183,7 +163,7 @@ async function buildSessionPayload(
     accessToken,
     refreshToken,
     expiresIn,
-    organization: await buildOrganizationSummary(organization),
+    organization: toOrganizationSummary(organization),
     subscription,
     businessDetails: {
       completed:
@@ -466,7 +446,7 @@ async function buildProfilePayload(organization: OrganizationRecord): Promise<Au
     accessToken: '',
     refreshToken: '',
     expiresIn: 0,
-    organization: await buildOrganizationSummary(organization),
+    organization: toOrganizationSummary(organization),
     subscription,
     businessDetails: {
       completed:
@@ -489,14 +469,6 @@ export async function updateProfile(
 
   if (input.preferredTranslationLanguage !== undefined) {
     patch.preferred_translation_language = input.preferredTranslationLanguage
-  }
-
-  if (input.agentEnabled === true) {
-    await assertCanEnableBusinessAgent(auth.organizationId)
-  }
-
-  if (input.agentEnabled !== undefined) {
-    patch.agent_enabled = input.agentEnabled
   }
 
   const organization = await authRepository.updateOrganizationProfile(auth.organizationId, patch)

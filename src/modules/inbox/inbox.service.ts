@@ -4,7 +4,6 @@ import {
   enrichInstagramParticipantRecord,
 } from '../../platforms/instagram/enrichment.js'
 import { enqueueInboundMediaIngestionJob } from '../../shared/queue/index.js'
-import { maybeEnqueueAgentJob } from '../agent/agent.jobs.service.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError, isAppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
@@ -644,21 +643,6 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       filename: pendingMediaIngestion.filename ?? null,
     })
   }
-
-  void maybeEnqueueAgentJob({
-    organizationId: input.organizationId,
-    conversationId: conversation.id,
-    inboundMessageId: message.id,
-    contentType,
-    content,
-  }).catch((error: unknown) => {
-    logger.warn('[agent] Failed to enqueue agent job', {
-      organizationId: input.organizationId,
-      conversationId: conversation.id,
-      inboundMessageId: message.id,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  })
 
   return {
     conversation: toConversationResponse(conversation),

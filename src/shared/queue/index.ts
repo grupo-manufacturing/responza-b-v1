@@ -23,12 +23,6 @@ export {
   type AiQueueJobData,
 } from './ai.queue.js'
 export {
-  AGENT_JOB_NAMES,
-  AGENT_QUEUE_NAME,
-  closeAgentQueue,
-  enqueueAgentJob,
-} from './agent.queue.js'
-export {
   attachWorkerLifecycleLogs,
   isDuplicateQueueJobError,
   isQueueJobLastAttempt,
@@ -37,7 +31,6 @@ export {
 } from './worker.utils.js'
 export {
   aiDefaultJobOptions,
-  agentDefaultJobOptions,
   buildQueueJobOptions,
   mediaDefaultJobOptions,
   webhookDefaultJobOptions,

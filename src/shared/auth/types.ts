@@ -15,9 +15,6 @@ export type AuthSessionPayload = {
     readonly plan: string
     readonly preferredTranslationLanguage: string | null
     readonly emailVerified: boolean
-    readonly agentEnabled: boolean
-    readonly agentDailyLimit: number
-    readonly agentRepliesUsedToday: number
   }
   readonly subscription: {
     readonly plan: string

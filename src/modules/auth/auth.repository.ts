@@ -102,7 +102,6 @@ export async function createOrganization(input: {
 export type OrganizationProfilePatch = {
   name?: string
   preferred_translation_language?: string | null
-  agent_enabled?: boolean
 }
 
 export async function updateOrganizationProfile(
@@ -119,10 +118,6 @@ export async function updateOrganizationProfile(
 
   if (patch.preferred_translation_language !== undefined) {
     payload.preferred_translation_language = patch.preferred_translation_language
-  }
-
-  if (patch.agent_enabled !== undefined) {
-    payload.agent_enabled = patch.agent_enabled
   }
 
   const client = getSupabaseAdminClient()

@@ -117,7 +117,6 @@ export type InsertOutboundMessageInput = {
   mime_type?: string | null
   platform_media_id?: string | null
   file_size_bytes?: number | null
-  send_source?: 'human' | 'agent'
 }
 
 export async function insertOutboundMessage(
@@ -140,7 +139,6 @@ export async function insertOutboundMessage(
       platform_media_id: input.platform_media_id ?? null,
       file_size_bytes: input.file_size_bytes ?? null,
       status: 'pending',
-      send_source: input.send_source ?? 'human',
     })
     .select(MESSAGE_COLUMNS)
     .single()
