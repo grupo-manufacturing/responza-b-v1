@@ -1,7 +1,14 @@
 import { z } from 'zod'
 
-const optionalHttpUrlField = z
-  .union([
+const optionalHttpUrlField = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null || value === '') {
+      return null
+    }
+
+    return value
+  },
+  z.union([
     z
       .string()
       .trim()
@@ -9,16 +16,9 @@ const optionalHttpUrlField = z
       .refine((value) => value.startsWith('http://') || value.startsWith('https://'), {
         message: 'Must be a valid http or https URL',
       }),
-    z.literal(''),
-  ])
-  .optional()
-  .transform((value) => {
-    if (value === undefined || value === '') {
-      return null
-    }
-
-    return value
-  })
+    z.null(),
+  ]),
+)
 
 export const completeBusinessBodySchema = z.object({
   brandName: z
