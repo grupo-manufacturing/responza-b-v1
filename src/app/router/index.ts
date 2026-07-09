@@ -14,6 +14,7 @@ import { createSubscriptionRouter } from '../../modules/subscription/subscriptio
 import {
   authenticateMiddleware,
   requireActiveSubscriptionMiddleware,
+  requirePaidSubscriptionMiddleware,
 } from '../../shared/middleware/index.js'
 import { healthRouter } from './health.routes.js'
 
@@ -37,11 +38,15 @@ export function createAppRouter(): Router {
   const subscriptionGatedRouter = Router()
   subscriptionGatedRouter.use(requireActiveSubscriptionMiddleware)
   subscriptionGatedRouter.use('/business', createBusinessRouter())
-  subscriptionGatedRouter.use('/dashboard', createDashboardRouter())
   subscriptionGatedRouter.use('/leads', createLeadsRouter())
   subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
-  subscriptionGatedRouter.use('/ai', createAiRouter())
+
+  const paidPlanRouter = Router()
+  paidPlanRouter.use(requirePaidSubscriptionMiddleware)
+  paidPlanRouter.use('/dashboard', createDashboardRouter())
+  paidPlanRouter.use('/ai', createAiRouter())
+  subscriptionGatedRouter.use(paidPlanRouter)
 
   protectedApiRouter.use(subscriptionGatedRouter)
 
