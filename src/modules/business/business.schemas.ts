@@ -1,7 +1,16 @@
 import { z } from 'zod'
 
-const optionalUrlField = z
-  .union([z.string().trim().url({ message: 'Must be a valid URL' }), z.literal('')])
+const optionalHttpUrlField = z
+  .union([
+    z
+      .string()
+      .trim()
+      .url({ message: 'Must be a valid http or https URL' })
+      .refine((value) => value.startsWith('http://') || value.startsWith('https://'), {
+        message: 'Must be a valid http or https URL',
+      }),
+    z.literal(''),
+  ])
   .optional()
   .transform((value) => {
     if (value === undefined || value === '') {
@@ -12,11 +21,19 @@ const optionalUrlField = z
   })
 
 export const completeBusinessBodySchema = z.object({
-  brandName: z.string().trim().min(1).max(200),
-  websiteUrl: optionalUrlField,
-  facebookPageUrl: optionalUrlField,
-  instagramPageUrl: optionalUrlField,
-  businessDescription: z.string().trim().min(20).max(5000),
+  brandName: z
+    .string()
+    .trim()
+    .min(1, 'Brand name is required')
+    .max(200, 'Brand name must be 200 characters or less'),
+  websiteUrl: optionalHttpUrlField,
+  facebookPageUrl: optionalHttpUrlField,
+  instagramPageUrl: optionalHttpUrlField,
+  businessDescription: z
+    .string()
+    .trim()
+    .min(20, 'Business description must be at least 20 characters')
+    .max(5000, 'Business description must be 5000 characters or less'),
 })
 
 export const updateBusinessBodySchema = completeBusinessBodySchema
