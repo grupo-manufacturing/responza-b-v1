@@ -108,7 +108,7 @@ export async function assertCanCreateConversation(organizationId: string): Promi
     throw new AppError(
       402,
       'CONVERSATION_LIMIT_REACHED',
-      'You have reached your monthly conversation limit. Upgrade your plan to start new conversations.',
+      'You have reached your conversation limit for this billing period. Upgrade your plan to start new conversations.',
       { usage: summary },
     )
   }

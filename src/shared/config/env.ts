@@ -24,8 +24,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  TRIAL_DURATION_DAYS: z.coerce.number().int().positive().default(7),
-  SUBSCRIPTION_PERIOD_DAYS: z.coerce.number().int().positive().default(30),
+  TRIAL_DURATION_DAYS: z.coerce.number().int().positive().default(3),
   WHATSAPP_GRAPH_VERSION: z.string().trim().min(1).default('v25.0'),
   META_APP_ID: z.string().default(''),
   META_APP_SECRET: z.string().default(''),
@@ -46,8 +45,6 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().default(''),
   RAZORPAY_PLAN_BASIC: z.string().default(''),
   RAZORPAY_PLAN_PREMIUM: z.string().default(''),
-  RAZORPAY_PLAN_SCALE: z.string().default(''),
-  RAZORPAY_PLAN_ENTERPRISE: z.string().default(''),
   RAZORPAY_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   /** Monthly billing cycles sent to Razorpay when creating a subscription. */
   RAZORPAY_SUBSCRIPTION_TOTAL_COUNT: z.coerce.number().int().positive().default(120),

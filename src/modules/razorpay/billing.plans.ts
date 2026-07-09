@@ -1,9 +1,11 @@
 import type { Env } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 
-export const BILLING_PLAN_KEYS = ['basic', 'premium', 'scale', 'enterprise'] as const
+export const BILLING_PLAN_KEYS = ['basic', 'premium'] as const
 
 export type BillingPlanKey = (typeof BILLING_PLAN_KEYS)[number]
+
+export type BillingPlanInterval = 'monthly' | 'yearly'
 
 export type RazorpayKeyMode = 'test' | 'live' | 'unknown'
 
@@ -14,7 +16,7 @@ export type BillingPlanCatalogEntry = {
   /** GST-inclusive amount in paise (e.g. ₹499 → 49900). */
   readonly amountPaise: number
   readonly currency: 'INR'
-  readonly interval: 'monthly'
+  readonly interval: BillingPlanInterval
 }
 
 export type BillingPlan = BillingPlanCatalogEntry & {
@@ -37,35 +39,17 @@ const BILLING_PLAN_CATALOG: Record<BillingPlanKey, BillingPlanCatalogEntry> = {
   },
   premium: {
     key: 'premium',
-    label: 'Premium',
-    conversationLimit: 2_500,
-    amountPaise: 500_000,
+    label: 'Responza Annual',
+    conversationLimit: 30_000,
+    amountPaise: 499_900,
     currency: 'INR',
-    interval: 'monthly',
-  },
-  scale: {
-    key: 'scale',
-    label: 'Scale',
-    conversationLimit: 7_000,
-    amountPaise: 1_000_000,
-    currency: 'INR',
-    interval: 'monthly',
-  },
-  enterprise: {
-    key: 'enterprise',
-    label: 'Enterprise',
-    conversationLimit: 25_000,
-    amountPaise: 2_000_000,
-    currency: 'INR',
-    interval: 'monthly',
+    interval: 'yearly',
   },
 }
 
 const RAZORPAY_PLAN_ID_BY_KEY: Record<BillingPlanKey, (env: Env) => string> = {
   basic: (env) => env.RAZORPAY_PLAN_BASIC,
   premium: (env) => env.RAZORPAY_PLAN_PREMIUM,
-  scale: (env) => env.RAZORPAY_PLAN_SCALE,
-  enterprise: (env) => env.RAZORPAY_PLAN_ENTERPRISE,
 }
 
 export function isBillingPlanKey(value: string): value is BillingPlanKey {
