@@ -41,11 +41,11 @@ export function createAppRouter(): Router {
   subscriptionGatedRouter.use('/leads', createLeadsRouter())
   subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
+  subscriptionGatedRouter.use('/ai', createAiRouter())
 
   const paidPlanRouter = Router()
   paidPlanRouter.use(requirePaidSubscriptionMiddleware)
   paidPlanRouter.use('/dashboard', createDashboardRouter())
-  paidPlanRouter.use('/ai', createAiRouter())
   subscriptionGatedRouter.use(paidPlanRouter)
 
   protectedApiRouter.use(subscriptionGatedRouter)

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 
-import { validateRequest } from '../../shared/middleware/index.js'
+import { validateRequest, requirePaidSubscriptionMiddleware } from '../../shared/middleware/index.js'
 import { createAiRateLimiter } from '../../shared/rate-limit/index.js'
 import * as aiJobsService from './ai.jobs.service.js'
 import {
@@ -55,6 +55,7 @@ export function createAiRouter(): Router {
 
   router.post(
     '/conversation-analytics',
+    requirePaidSubscriptionMiddleware,
     rateLimiter,
     validateRequest({ body: conversationAnalyticsBodySchema }),
     (req, res, next) => {
