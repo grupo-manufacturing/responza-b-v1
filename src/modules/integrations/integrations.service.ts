@@ -1,5 +1,9 @@
 import { exchangeWhatsAppAccessToken, fetchWhatsAppBusinessProfile } from '../../platforms/whatsapp/index.js'
-import { exchangeInstagramAccessToken, fetchInstagramUserInfo } from '../../platforms/instagram/exchangeAccessToken.js'
+import {
+  exchangeInstagramAccessToken,
+  fetchInstagramUserInfo,
+  subscribeInstagramWebhooks,
+} from '../../platforms/instagram/index.js'
 import { backfillInstagramParticipantProfiles } from '../../platforms/instagram/enrichment.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
@@ -128,6 +132,11 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
 
   const accessToken = await exchangeInstagramAccessToken(code, body.redirect_uri)
   const userInfo = await fetchInstagramUserInfo(accessToken)
+
+  await subscribeInstagramWebhooks({
+    businessAccountId: userInfo.business_account_id,
+    accessToken,
+  })
 
   const metadata = instagramIntegrationMetadataSchema.parse({
     business_account_id: userInfo.business_account_id,
