@@ -1,4 +1,4 @@
-export const SUPPORTED_PLATFORMS = ['whatsapp', 'instagram', 'indiamart'] as const
+export const SUPPORTED_PLATFORMS = ['whatsapp', 'instagram'] as const
 
 export const INTEGRATION_STATUS_VALUES = ['connected', 'disconnected'] as const
 
@@ -31,13 +31,11 @@ export type IntegrationCredentials = {
 const PLATFORM_TO_API: Record<IntegrationPlatform, string> = {
   whatsapp: 'whatsapp',
   instagram: 'instagram',
-  indiamart: 'indiamart',
 }
 
 const PLATFORM_FROM_API: Record<string, IntegrationPlatform> = {
   whatsapp: 'whatsapp',
   instagram: 'instagram',
-  indiamart: 'indiamart',
 }
 
 const STATUS_TO_API: Record<IntegrationStatus, string> = {

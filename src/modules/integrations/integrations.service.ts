@@ -90,8 +90,6 @@ export async function connectIntegration(
       return connectWhatsAppIntegration(auth, body)
     case 'instagram':
       return connectInstagramIntegration(auth, body)
-    case 'indiamart':
-      throw new AppError(501, 'NOT_IMPLEMENTED', `${integrationPlatformToApi(platform)} connect is not implemented yet`)
     default:
       throw new AppError(400, 'BAD_REQUEST', `Unsupported platform: ${platform}`)
   }

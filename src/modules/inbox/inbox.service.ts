@@ -387,10 +387,6 @@ export async function uploadOutboundMedia(
     throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
   }
 
-  if (conversation.platform === 'indiamart') {
-    throw new AppError(400, 'BAD_REQUEST', 'Media messages are not supported for this platform')
-  }
-
   if (file === undefined || file.buffer.byteLength === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Media file is required')
   }
@@ -432,10 +428,6 @@ export async function sendMessage(
   const content = input.content ?? ''
 
   if (isMediaContentType(contentType)) {
-    if (conversation.platform === 'indiamart') {
-      throw new AppError(400, 'BAD_REQUEST', 'Media messages are not supported for this platform')
-    }
-
     if (input.storagePath === undefined || input.mimeType === undefined) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Media attachment metadata is required')
     }

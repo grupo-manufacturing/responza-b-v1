@@ -35,7 +35,7 @@ function sanitizeCustomerName(name: string): string {
     return trimmed.slice(0, 50)
   }
 
-  return 'Responza Customer'
+  return 'Responza AI Customer'
 }
 
 function mapRazorpayError(status: number, body: RazorpayApiErrorBody): AppError {

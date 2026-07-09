@@ -34,8 +34,6 @@ export async function dispatchOutboundMessage(
         return dispatchWhatsAppMediaMessage(input)
       case 'instagram':
         return dispatchInstagramMediaMessage(input)
-      case 'indiamart':
-        throw new AppError(400, 'BAD_REQUEST', 'Media messages are not supported for this platform')
       default:
         throw new AppError(400, 'BAD_REQUEST', `Unsupported platform: ${input.platform}`)
     }
@@ -46,8 +44,6 @@ export async function dispatchOutboundMessage(
       return dispatchWhatsAppTextMessage(input)
     case 'instagram':
       return dispatchInstagramTextMessage(input)
-    case 'indiamart':
-      return { platformMessageId: null }
     default:
       throw new AppError(400, 'BAD_REQUEST', `Unsupported platform: ${input.platform}`)
   }

@@ -20,7 +20,7 @@ export async function requireActiveSubscriptionMiddleware(
         new AppError(
           402,
           'SUBSCRIPTION_REQUIRED',
-          'Your free trial has ended. Subscribe to continue using Responza.',
+          'Your free trial has ended. Subscribe to continue using Responza AI.',
           { subscription },
         ),
       )

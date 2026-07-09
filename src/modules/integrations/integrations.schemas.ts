@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const integrationPlatformSchema = z.enum(['whatsapp', 'instagram', 'indiamart'])
+const integrationPlatformSchema = z.enum(['whatsapp', 'instagram'])
 
 export const integrationPlatformParamsSchema = z.object({
   platform: integrationPlatformSchema,
