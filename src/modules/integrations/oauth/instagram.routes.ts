@@ -6,10 +6,10 @@ function oauthCallbackHtml(input: {
   title: string
   message: string
   payload: Record<string, unknown>
-  frontendOrigin: string
+  targetOrigins: string[]
 }): string {
   const serializedPayload = JSON.stringify(input.payload)
-  const serializedOrigin = JSON.stringify(input.frontendOrigin)
+  const serializedOrigins = JSON.stringify(input.targetOrigins)
 
   return `<!doctype html>
 <html lang="en">
@@ -23,11 +23,19 @@ function oauthCallbackHtml(input: {
   <script>
     (function () {
       var payload = ${serializedPayload};
-      var targetOrigin = ${serializedOrigin};
-      if (window.opener) {
-        window.opener.postMessage(payload, targetOrigin);
-        window.close();
+      var targetOrigins = ${serializedOrigins};
+      if (window.opener && !window.opener.closed) {
+        for (var i = 0; i < targetOrigins.length; i += 1) {
+          try {
+            window.opener.postMessage(payload, targetOrigins[i]);
+          } catch (error) {
+            void error;
+          }
+        }
       }
+      setTimeout(function () {
+        window.close();
+      }, 150);
     })();
   </script>
 </body>
@@ -39,7 +47,11 @@ export function createInstagramOAuthRouter(): Router {
 
   router.get('/instagram/callback', (req, res) => {
     const env = loadEnv()
-    const frontendOrigin = getCorsOrigins(env)[0] ?? 'http://localhost:5173'
+    const targetOrigins = getCorsOrigins(env)
+
+    // Allow the opener window to receive postMessage after cross-origin Instagram redirects.
+    res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none')
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none')
 
     const oauthError =
       typeof req.query.error === 'string'
@@ -53,7 +65,7 @@ export function createInstagramOAuthRouter(): Router {
         oauthCallbackHtml({
           title: 'Instagram login canceled',
           message: 'You can close this window and try again.',
-          frontendOrigin,
+          targetOrigins,
           payload: {
             type: 'INSTAGRAM_OAUTH_ERROR',
             error: 'Instagram authorization was canceled',
@@ -70,7 +82,7 @@ export function createInstagramOAuthRouter(): Router {
         oauthCallbackHtml({
           title: 'Instagram login failed',
           message: 'No authorization code was returned.',
-          frontendOrigin,
+          targetOrigins,
           payload: {
             type: 'INSTAGRAM_OAUTH_ERROR',
             error: 'No authorization code received',
@@ -84,7 +96,7 @@ export function createInstagramOAuthRouter(): Router {
       oauthCallbackHtml({
         title: 'Instagram connected',
         message: 'Finishing setup. This window will close automatically.',
-        frontendOrigin,
+        targetOrigins,
         payload: {
           type: 'INSTAGRAM_OAUTH_SUCCESS',
           code,
