@@ -8,6 +8,7 @@ export {
   listBillingPlansPublic,
   resolveBillingPlan,
   resolveBillingPlanKeyByRazorpayPlanId,
+  resolveRazorpaySubscriptionTotalCount,
   type BillingPlan,
   type BillingPlanCatalogEntry,
   type BillingPlanKey,

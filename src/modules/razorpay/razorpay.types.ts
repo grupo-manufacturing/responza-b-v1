@@ -59,6 +59,7 @@ export type CreateRazorpaySubscriptionInput = {
   readonly customerId: string
   readonly organizationId: string
   readonly planKey: string
+  readonly totalCount: number
   readonly startAt?: Date
 }
 

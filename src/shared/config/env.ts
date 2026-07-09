@@ -46,7 +46,7 @@ const envSchema = z.object({
   RAZORPAY_PLAN_BASIC: z.string().default(''),
   RAZORPAY_PLAN_PREMIUM: z.string().default(''),
   RAZORPAY_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
-  /** Monthly billing cycles sent to Razorpay when creating a subscription. */
+  /** Max billing cycles sent to Razorpay (capped per plan interval in code). */
   RAZORPAY_SUBSCRIPTION_TOTAL_COUNT: z.coerce.number().int().positive().default(120),
   WEBHOOK_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(10),
   MEDIA_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(3),

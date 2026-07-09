@@ -134,11 +134,10 @@ export async function fetchCustomer(customerId: string): Promise<RazorpayCustome
 export async function createSubscription(
   input: CreateRazorpaySubscriptionInput,
 ): Promise<RazorpaySubscription> {
-  const env = loadEnv()
   const payload: Record<string, unknown> = {
     plan_id: input.planId,
     customer_id: input.customerId,
-    total_count: env.RAZORPAY_SUBSCRIPTION_TOTAL_COUNT,
+    total_count: input.totalCount,
     quantity: 1,
     customer_notify: true,
     notes: {

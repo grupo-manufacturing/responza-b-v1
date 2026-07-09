@@ -5,7 +5,11 @@ import type { OrganizationRecord } from '../subscription/subscription.repository
 import * as subscriptionRepository from '../subscription/subscription.repository.js'
 import type { BillingPlan } from './billing.plans.js'
 import type { BillingPlanKey } from './billing.plans.js'
-import { isRazorpayBillingConfigured, resolveBillingPlan } from './billing.plans.js'
+import {
+  isRazorpayBillingConfigured,
+  resolveBillingPlan,
+  resolveRazorpaySubscriptionTotalCount,
+} from './billing.plans.js'
 import * as razorpayClient from './razorpay.client.js'
 import {
   applyActiveSubscriptionFromRazorpay,
@@ -117,6 +121,10 @@ export async function createCheckoutSubscription(input: {
     customerId: organizationWithCustomer.razorpay_customer_id!,
     organizationId: organizationWithCustomer.id,
     planKey: plan.key,
+    totalCount: resolveRazorpaySubscriptionTotalCount(
+      plan.interval,
+      env.RAZORPAY_SUBSCRIPTION_TOTAL_COUNT,
+    ),
   })
 
   const updated = await subscriptionRepository.updateRazorpaySubscriptionId(

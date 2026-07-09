@@ -124,6 +124,19 @@ function toBillingPlanPublic(plan: BillingPlanCatalogEntry): BillingPlanPublic {
   }
 }
 
+const RAZORPAY_MAX_SUBSCRIPTION_TOTAL_COUNT: Record<BillingPlanInterval, number> = {
+  monthly: 120,
+  yearly: 100,
+}
+
+export function resolveRazorpaySubscriptionTotalCount(
+  interval: BillingPlanInterval,
+  configuredTotalCount: number,
+): number {
+  const cap = RAZORPAY_MAX_SUBSCRIPTION_TOTAL_COUNT[interval]
+  return Math.min(configuredTotalCount, cap)
+}
+
 export function getBillingPlanCatalogEntry(key: BillingPlanKey): BillingPlanCatalogEntry {
   return BILLING_PLAN_CATALOG[key]
 }
