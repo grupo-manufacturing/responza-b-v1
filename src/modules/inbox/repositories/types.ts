@@ -58,6 +58,7 @@ export type MessageRecord = {
   platform_media_id: string | null
   file_size_bytes: number | null
   status: MessageStatus
+  send_source: 'human' | 'agent'
   created_at: string
 }
 

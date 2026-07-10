@@ -55,6 +55,25 @@ const envSchema = z.object({
   WEBHOOK_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   MEDIA_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   AI_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(25000),
+  OPENAI_EMBEDDING_MODEL: z.string().trim().min(1).default('text-embedding-3-small'),
+  AGENT_DEBOUNCE_MS: z.coerce.number().int().positive().default(2500),
+  AGENT_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.85),
+  AGENT_RETRIEVAL_TOP_K: z.coerce.number().int().positive().default(8),
+  KNOWLEDGE_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  AGENT_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  KNOWLEDGE_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  AGENT_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  KNOWLEDGE_SCHEDULER_ENABLED: z
+    .string()
+    .default('true')
+    .transform((value) => value === 'true' || value === '1'),
+  KNOWLEDGE_WEBSITE_MAX_PAGES: z.coerce.number().int().positive().default(10),
+  KNOWLEDGE_WEBSITE_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  KNOWLEDGE_WEBSITE_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(512000),
+  KNOWLEDGE_INSTAGRAM_MEDIA_LIMIT: z.coerce.number().int().positive().default(25),
+  KNOWLEDGE_INSTAGRAM_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  KNOWLEDGE_INSTAGRAM_REFRESH_CRON: z.string().trim().min(1).default('0 2 * * *'),
+  KNOWLEDGE_WEBSITE_REFRESH_CRON: z.string().trim().min(1).default('0 3 * * 0'),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
 })
 

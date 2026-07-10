@@ -1,5 +1,6 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
+import { enqueueKnowledgeIndexForOrganization, enqueueKnowledgeRemoveCatalogue } from '../knowledge/knowledge.enqueue.js'
 import type { CompleteBusinessBody, UpdateBusinessBody } from './business.schemas.js'
 import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
@@ -74,6 +75,7 @@ export async function completeBusiness(auth: AuthContext, input: CompleteBusines
     auth.organizationId,
     bodyToProfilePatch(input),
   )
+  await enqueueKnowledgeIndexForOrganization(auth.organizationId)
   return toBusinessResponse(completed)
 }
 
@@ -87,6 +89,7 @@ export async function updateBusiness(auth: AuthContext, input: UpdateBusinessBod
     auth.organizationId,
     bodyToProfilePatch(input),
   )
+  await enqueueKnowledgeIndexForOrganization(auth.organizationId)
   return toBusinessResponse(updated)
 }
 
@@ -121,6 +124,9 @@ export async function uploadCatalogueFile(
   }
 
   const profile = await businessRepository.addCatalogueFile(auth.organizationId, catalogueFile)
+  await enqueueKnowledgeIndexForOrganization(auth.organizationId, {
+    catalogueFileId: catalogueFile.id,
+  })
 
   return {
     file: toCatalogueFileResponse(catalogueFile),
@@ -141,6 +147,8 @@ export async function deleteCatalogueFile(auth: AuthContext, fileId: string) {
       // Profile metadata is already updated; orphaned storage can be cleaned later.
     }
   }
+
+  await enqueueKnowledgeRemoveCatalogue(auth.organizationId, fileId)
 
   return toBusinessResponse(profile)
 }

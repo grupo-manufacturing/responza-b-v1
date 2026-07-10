@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { createAgentRouter } from '../../modules/agent/agent.routes.js'
 import { createAiRouter } from '../../modules/ai/ai.routes.js'
 import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
 import { createBusinessRouter } from '../../modules/business/business.routes.js'
@@ -42,6 +43,7 @@ export function createAppRouter(): Router {
   subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
   subscriptionGatedRouter.use('/ai', createAiRouter())
+  subscriptionGatedRouter.use('/agent', createAgentRouter())
 
   const paidPlanRouter = Router()
   paidPlanRouter.use(requirePaidSubscriptionMiddleware)

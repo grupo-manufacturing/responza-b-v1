@@ -11,7 +11,7 @@ import { touchConversationOnNewMessage } from './conversation.repository.js'
 import type { ListMessagesInput, ListMessagesResult, MessageRecord } from './types.js'
 
 const MESSAGE_COLUMNS =
-  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, content_type, storage_path, mime_type, platform_media_id, file_size_bytes, status, created_at'
+  'id, organization_id, conversation_id, participant_id, direction, platform_message_id, content, content_type, storage_path, mime_type, platform_media_id, file_size_bytes, status, send_source, created_at'
 
 export async function listMessagesByConversationId(
   organizationId: string,
@@ -117,6 +117,7 @@ export type InsertOutboundMessageInput = {
   mime_type?: string | null
   platform_media_id?: string | null
   file_size_bytes?: number | null
+  send_source?: 'human' | 'agent'
 }
 
 export async function insertOutboundMessage(
@@ -139,6 +140,7 @@ export async function insertOutboundMessage(
       platform_media_id: input.platform_media_id ?? null,
       file_size_bytes: input.file_size_bytes ?? null,
       status: 'pending',
+      send_source: input.send_source ?? 'human',
     })
     .select(MESSAGE_COLUMNS)
     .single()
@@ -548,6 +550,7 @@ function normalizeMessageRecord(row: Record<string, unknown>): MessageRecord {
     file_size_bytes:
       typeof row.file_size_bytes === 'number' ? row.file_size_bytes : null,
     status: row.status as MessageStatus,
+    send_source: (row.send_source as 'human' | 'agent' | undefined) ?? 'human',
     created_at: row.created_at as string,
   }
 }
