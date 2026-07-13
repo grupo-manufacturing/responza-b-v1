@@ -8,6 +8,7 @@ import {
 } from '../media/media.constants.js'
 import { uploadMessageMedia } from '../../shared/storage/supabase.storage.js'
 import { AppError } from '../../shared/errors/index.js'
+import { logger } from '../../shared/logger.js'
 import {
   CATALOGUE_ALLOWED_MIME_TYPES,
   CATALOGUE_MAX_FILE_SIZE_BYTES,
@@ -38,11 +39,15 @@ export async function storeBusinessCatalogueFile(input: {
   filename: string
 }> {
   if (input.buffer.byteLength === 0) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'Catalogue file is required')
+    throw new AppError(400, 'VALIDATION_ERROR', 'The selected file is empty. Please choose a file with content.')
   }
 
   if (input.buffer.byteLength > CATALOGUE_MAX_FILE_SIZE_BYTES) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'Catalogue file exceeds the 10 MB limit')
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      'This file is larger than the 10 MB limit. Try compressing it or splitting it into smaller files.',
+    )
   }
 
   const sniffed = sniffMimeTypeFromBuffer(input.buffer)
@@ -55,7 +60,11 @@ export async function storeBusinessCatalogueFile(input: {
   const resolvedMimeType = candidates.find((mime) => isAllowedCatalogueMimeType(mime)) ?? null
 
   if (resolvedMimeType === null) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'Unsupported catalogue file type')
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      'This file type is not supported. Please upload a PDF, Word, Excel, PowerPoint, or text file.',
+    )
   }
 
   const fileId = randomUUID()
@@ -65,11 +74,20 @@ export async function storeBusinessCatalogueFile(input: {
     extension: extensionForMediaMimeType('document', resolvedMimeType),
   })
 
-  await uploadMessageMedia({
-    storagePath,
-    body: input.buffer,
-    mimeType: resolvedMimeType,
-  })
+  try {
+    await uploadMessageMedia({
+      storagePath,
+      body: input.buffer,
+      mimeType: resolvedMimeType,
+    })
+  } catch (error) {
+    logger.error(error)
+    throw new AppError(
+      500,
+      'INTERNAL_ERROR',
+      'We could not save your file right now. Please try again in a moment.',
+    )
+  }
 
   const filename =
     input.filename !== null && input.filename !== undefined && input.filename.trim().length > 0

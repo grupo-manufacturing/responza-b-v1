@@ -6,6 +6,7 @@ import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
 import type { CatalogueFileRecord } from './business.types.js'
 import { storeBusinessCatalogueFile } from './business.storage.js'
+import { CATALOGUE_MAX_FILES } from './business.constants.js'
 
 function toCatalogueFileResponse(file: CatalogueFileRecord) {
   return {
@@ -104,7 +105,22 @@ export async function uploadCatalogueFile(
     | undefined,
 ) {
   if (file === undefined || file.buffer.byteLength === 0) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'Catalogue file is required')
+    throw new AppError(400, 'VALIDATION_ERROR', 'Please choose a file to upload.')
+  }
+
+  // Check the file limit before uploading to storage so a rejected upload
+  // never leaves an orphaned object behind.
+  const existingProfile = await businessRepository.findProfileByOrganizationId(auth.organizationId)
+  if (existingProfile === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Business profile not found')
+  }
+
+  if (existingProfile.catalogue_files.length >= CATALOGUE_MAX_FILES) {
+    throw new AppError(
+      400,
+      'BAD_REQUEST',
+      `You have reached the limit of ${CATALOGUE_MAX_FILES} catalogue files. Remove one to upload another.`,
+    )
   }
 
   const stored = await storeBusinessCatalogueFile({

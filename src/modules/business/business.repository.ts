@@ -100,7 +100,7 @@ export async function findProfileByOrganizationId(
     .maybeSingle()
 
   if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load business profile')
+    throw new AppError(500, 'INTERNAL_ERROR', 'We could not load your business profile. Please refresh the page and try again.')
   }
 
   if (data === null) {
@@ -127,7 +127,7 @@ export async function updateProfile(
     .single()
 
   if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update business profile')
+    throw new AppError(500, 'INTERNAL_ERROR', 'We could not save your business details right now. Please try again in a moment.')
   }
 
   return normalizeProfileRecord(data as Record<string, unknown>)
@@ -151,7 +151,7 @@ export async function completeProfile(
     .single()
 
   if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to complete business profile')
+    throw new AppError(500, 'INTERNAL_ERROR', 'We could not finish setting up your profile right now. Please try again in a moment — your answers are still here.')
   }
 
   return normalizeProfileRecord(data as Record<string, unknown>)
@@ -167,7 +167,11 @@ export async function addCatalogueFile(
   }
 
   if (profile.catalogue_files.length >= CATALOGUE_MAX_FILES) {
-    throw new AppError(400, 'BAD_REQUEST', `You can upload up to ${CATALOGUE_MAX_FILES} catalogue files`)
+    throw new AppError(
+      400,
+      'BAD_REQUEST',
+      `You have reached the limit of ${CATALOGUE_MAX_FILES} catalogue files. Remove one to upload another.`,
+    )
   }
 
   const nextFiles = [...profile.catalogue_files, file]
@@ -184,7 +188,7 @@ export async function addCatalogueFile(
     .single()
 
   if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to save catalogue file')
+    throw new AppError(500, 'INTERNAL_ERROR', 'We could not save your catalogue file right now. Please try again in a moment.')
   }
 
   return normalizeProfileRecord(data as Record<string, unknown>)
@@ -219,7 +223,7 @@ export async function removeCatalogueFile(
     .single()
 
   if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to remove catalogue file')
+    throw new AppError(500, 'INTERNAL_ERROR', 'We could not remove this file right now. Please try again in a moment.')
   }
 
   return {

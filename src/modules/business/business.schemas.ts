@@ -12,9 +12,9 @@ const optionalHttpUrlField = z.preprocess(
     z
       .string()
       .trim()
-      .url({ message: 'Must be a valid http or https URL' })
+      .url({ message: 'Please enter a full link starting with https:// (e.g., https://yourshop.com)' })
       .refine((value) => value.startsWith('http://') || value.startsWith('https://'), {
-        message: 'Must be a valid http or https URL',
+        message: 'Please enter a full link starting with https:// (e.g., https://yourshop.com)',
       }),
     z.null(),
   ]),
