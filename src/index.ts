@@ -6,9 +6,7 @@ import { getRazorpayKeyMode, isRazorpayConfigured } from './modules/razorpay/bil
 import { logger } from './shared/logger.js'
 import { closeRedisConnection } from './shared/redis/index.js'
 import {
-  closeAgentQueue,
   closeAiQueue,
-  closeKnowledgeQueue,
   closeMediaQueue,
   closeWebhookQueue,
 } from './shared/queue/index.js'
@@ -62,8 +60,6 @@ async function shutdown(signal: string): Promise<void> {
   await closeWebhookQueue()
   await closeMediaQueue()
   await closeAiQueue()
-  await closeKnowledgeQueue()
-  await closeAgentQueue()
   await closeRedisConnection()
 
   clearTimeout(forceExitTimer)

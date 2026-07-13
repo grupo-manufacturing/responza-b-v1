@@ -1,5 +1,4 @@
 import { dispatchOutboundMessage } from '../../platforms/dispatchOutboundMessage.js'
-import { enqueueAgentEvaluation } from '../agent/agent.enqueue.js'
 import {
   enrichInstagramConversationList,
   enrichInstagramParticipantRecord,
@@ -634,14 +633,6 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       mediaUrl: pendingMediaIngestion.mediaUrl,
       mimeTypeHint: pendingMediaIngestion.mimeTypeHint,
       filename: pendingMediaIngestion.filename ?? null,
-    })
-  }
-
-  if (contentType === 'text' && message !== null) {
-    await enqueueAgentEvaluation({
-      organizationId: input.organizationId,
-      conversationId: conversation.id,
-      messageId: message.id,
     })
   }
 

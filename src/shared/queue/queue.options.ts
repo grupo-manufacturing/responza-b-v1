@@ -35,17 +35,3 @@ export function aiDefaultJobOptions(): JobsOptions {
     backoffDelayMs: 2000,
   })
 }
-
-export function knowledgeDefaultJobOptions(): JobsOptions {
-  return buildQueueJobOptions({
-    attempts: 2,
-    backoffDelayMs: 3000,
-  })
-}
-
-export function agentDefaultJobOptions(): JobsOptions {
-  return buildQueueJobOptions({
-    attempts: 2,
-    backoffDelayMs: 2000,
-  })
-}

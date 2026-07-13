@@ -8,8 +8,6 @@ import { backfillInstagramParticipantProfiles } from '../../platforms/instagram/
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
-import { enqueueKnowledgeInstagramIndex } from '../knowledge/knowledge.enqueue.js'
-import { removeInstagramKnowledge } from '../knowledge/indexer.service.js'
 import { syncChannel } from '../inbox/inbox.service.js'
 import {
   getInstagramCredentialsForOrganization,
@@ -159,7 +157,6 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
       error: error instanceof Error ? error.message : String(error),
     })
   })
-  await enqueueKnowledgeInstagramIndex(auth.organizationId)
 
   return result
 }
@@ -170,15 +167,6 @@ export async function disconnectIntegration(auth: AuthContext, platformParam: st
     auth.organizationId,
     platform,
   )
-
-  if (platform === 'instagram') {
-    await removeInstagramKnowledge(auth.organizationId).catch((error: unknown) => {
-      logger.warn('[knowledge] Failed to remove Instagram knowledge after disconnect', {
-        organizationId: auth.organizationId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-  }
 
   return {
     integration: toIntegrationResponse(updated),

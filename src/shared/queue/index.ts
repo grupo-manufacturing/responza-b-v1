@@ -23,19 +23,6 @@ export {
   type AiQueueJobData,
 } from './ai.queue.js'
 export {
-  KNOWLEDGE_JOB_NAMES,
-  KNOWLEDGE_QUEUE_NAME,
-  closeKnowledgeQueue,
-  type KnowledgeIndexJobData,
-  type KnowledgeRemoveCatalogueJobData,
-} from './knowledge.queue.js'
-export {
-  AGENT_JOB_NAMES,
-  AGENT_QUEUE_NAME,
-  closeAgentQueue,
-  type AgentEvaluateJobData,
-} from './agent.queue.js'
-export {
   attachWorkerLifecycleLogs,
   isDuplicateQueueJobError,
   isQueueJobLastAttempt,
@@ -44,9 +31,7 @@ export {
 } from './worker.utils.js'
 export {
   aiDefaultJobOptions,
-  agentDefaultJobOptions,
   buildQueueJobOptions,
-  knowledgeDefaultJobOptions,
   mediaDefaultJobOptions,
   webhookDefaultJobOptions,
 } from './queue.options.js'
