@@ -56,6 +56,11 @@ const envSchema = z.object({
   MEDIA_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   AI_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(25000),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
+  /** Admin dashboard login (separate from organization accounts). */
+  ADMIN_USERNAME: z.string().default(''),
+  ADMIN_PASSWORD: z.string().default(''),
+  /** Optional. If empty, a key is derived from ADMIN_USERNAME + ADMIN_PASSWORD. */
+  ADMIN_SESSION_SECRET: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>

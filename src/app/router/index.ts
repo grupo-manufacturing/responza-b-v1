@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { createAdminRouter } from '../../modules/admin/admin.routes.js'
 import { createAiRouter } from '../../modules/ai/ai.routes.js'
 import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
 import { createBusinessRouter } from '../../modules/business/business.routes.js'
@@ -29,6 +30,7 @@ export function createAppRouter(): Router {
   const apiRouter = Router()
 
   apiRouter.use('/auth', createAuthPublicRouter())
+  apiRouter.use('/admin', createAdminRouter())
 
   const protectedApiRouter = Router()
   protectedApiRouter.use(authenticateMiddleware)

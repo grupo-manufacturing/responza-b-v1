@@ -1,6 +1,7 @@
 export { outboundMediaUpload } from './outboundMediaUpload.js'
 export { businessCatalogueUpload } from './businessCatalogueUpload.js'
 export { authenticateMiddleware } from './authenticate.js'
+export { requireAdminMiddleware } from './requireAdmin.js'
 export { requireActiveSubscriptionMiddleware } from './requireSubscription.js'
 export { requirePaidSubscriptionMiddleware } from './requirePaidSubscription.js'
 export { requireIntegrationMiddleware } from './requireIntegration.js'
