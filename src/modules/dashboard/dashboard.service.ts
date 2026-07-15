@@ -1,11 +1,8 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { integrationPlatformToApi } from '../integrations/integrations.constants.js'
-import { leadStatusToApi } from '../leads/leads.constants.js'
-import type { LeadRecord } from '../leads/leads.repository.js'
 import * as inboxRepository from '../inbox/inbox.repository.js'
 import type { ConversationListRecord } from '../inbox/inbox.repository.js'
 import {
-  DASHBOARD_FOLLOW_UP_LEAD_STATUSES,
   DASHBOARD_NUDGE_AFTER_DAYS,
   DASHBOARD_QUEUE_LIMIT,
   DASHBOARD_RESPONSE_TIME_WINDOW_DAYS,
@@ -26,18 +23,6 @@ export type DashboardConversationItem = {
   createdAt: string
 }
 
-export type DashboardLeadItem = {
-  id: string
-  organizationId: string
-  name: string
-  email: string | null
-  phone: string | null
-  notes: string | null
-  status: string
-  createdAt: string
-  updatedAt: string
-}
-
 export type DashboardStats = {
   totalConversations: number
   conversationsByPlatform: {
@@ -51,7 +36,6 @@ export type DashboardResponse = {
   stats: DashboardStats
   needsReply: DashboardConversationItem[]
   toNudge: DashboardConversationItem[]
-  leadsToFollowUp: DashboardLeadItem[]
 }
 
 function toConversationItem(conversation: ConversationListRecord): DashboardConversationItem {
@@ -67,20 +51,6 @@ function toConversationItem(conversation: ConversationListRecord): DashboardConv
     lastMessage: conversation.last_message_content,
     lastMessageAt: conversation.last_message_at,
     createdAt: conversation.created_at,
-  }
-}
-
-function toLeadItem(lead: LeadRecord): DashboardLeadItem {
-  return {
-    id: lead.id,
-    organizationId: lead.organization_id,
-    name: lead.name,
-    email: lead.email,
-    phone: lead.phone,
-    notes: lead.notes,
-    status: leadStatusToApi(lead.status),
-    createdAt: lead.created_at,
-    updatedAt: lead.updated_at,
   }
 }
 
@@ -212,13 +182,8 @@ function buildConversationQueues(
 export async function getDashboard(auth: AuthContext): Promise<DashboardResponse> {
   const responseWindowStart = subtractDays(new Date(), DASHBOARD_RESPONSE_TIME_WINDOW_DAYS)
 
-  const [conversationResult, leads, responseTimeMessages] = await Promise.all([
+  const [conversationResult, responseTimeMessages] = await Promise.all([
     inboxRepository.listConversations({ organizationId: auth.organizationId }),
-    dashboardRepository.listFollowUpLeads({
-      organizationId: auth.organizationId,
-      statuses: DASHBOARD_FOLLOW_UP_LEAD_STATUSES,
-      limit: DASHBOARD_QUEUE_LIMIT,
-    }),
     dashboardRepository.fetchMessagesForResponseTime(
       auth.organizationId,
       responseWindowStart.toISOString(),
@@ -246,6 +211,5 @@ export async function getDashboard(auth: AuthContext): Promise<DashboardResponse
     },
     needsReply,
     toNudge,
-    leadsToFollowUp: leads.map(toLeadItem),
   }
 }
