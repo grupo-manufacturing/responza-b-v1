@@ -14,7 +14,6 @@ function toAffiliateResponse(
     id: affiliate.id,
     name: affiliate.name,
     code: affiliate.code,
-    notes: affiliate.notes,
     isActive: affiliate.is_active,
     referralCount,
     activePaidReferralCount,
@@ -66,7 +65,6 @@ export async function createAffiliate(input: CreateAffiliateBody) {
   const affiliate = await affiliatesRepository.createAffiliate({
     name: input.name,
     code: input.code,
-    notes: input.notes ?? null,
   })
 
   return {
@@ -82,12 +80,10 @@ export async function updateAffiliate(id: string, input: UpdateAffiliateBody) {
 
   const patch: {
     name?: string
-    notes?: string | null
     is_active?: boolean
   } = {}
 
   if (input.name !== undefined) patch.name = input.name
-  if (input.notes !== undefined) patch.notes = input.notes
   if (input.isActive !== undefined) patch.is_active = input.isActive
 
   const updated = await affiliatesRepository.updateAffiliate(id, patch)

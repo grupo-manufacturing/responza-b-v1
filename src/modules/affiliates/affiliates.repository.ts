@@ -5,7 +5,6 @@ export type AffiliateRecord = {
   id: string
   name: string
   code: string
-  notes: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -32,7 +31,7 @@ export type OrganizationReferralState = {
   referred_at: string | null
 }
 
-const AFFILIATE_COLUMNS = 'id, name, code, notes, is_active, created_at, updated_at'
+const AFFILIATE_COLUMNS = 'id, name, code, is_active, created_at, updated_at'
 
 const REFERRED_ORG_COLUMNS =
   'id, email, name, plan, subscription_status, trial_started_at, trial_ends_at, subscription_period_starts_at, subscription_period_ends_at, conversation_limit, referred_at, created_at'
@@ -81,7 +80,6 @@ export async function findActiveAffiliateByCode(code: string): Promise<Affiliate
 export async function createAffiliate(input: {
   name: string
   code: string
-  notes: string | null
 }): Promise<AffiliateRecord> {
   const client = getSupabaseAdminClient()
   const { data, error } = await client
@@ -89,7 +87,6 @@ export async function createAffiliate(input: {
     .insert({
       name: input.name,
       code: input.code,
-      notes: input.notes,
       is_active: true,
     })
     .select(AFFILIATE_COLUMNS)
@@ -109,7 +106,6 @@ export async function updateAffiliate(
   id: string,
   patch: {
     name?: string
-    notes?: string | null
     is_active?: boolean
   },
 ): Promise<AffiliateRecord> {
