@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 
+import { createAffiliatesAdminRouter } from '../affiliates/affiliates.routes.js'
 import { requireAdminMiddleware } from '../../shared/middleware/index.js'
 import { validateRequest } from '../../shared/middleware/validateRequest.js'
 import * as adminService from './admin.service.js'
@@ -34,6 +35,8 @@ export function createAdminRouter(): Router {
       })
       .catch(next)
   })
+
+  router.use('/affiliates', createAffiliatesAdminRouter())
 
   return router
 }

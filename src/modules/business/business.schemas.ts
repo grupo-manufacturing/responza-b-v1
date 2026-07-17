@@ -20,7 +20,7 @@ const optionalHttpUrlField = z.preprocess(
   ]),
 )
 
-export const completeBusinessBodySchema = z.object({
+const businessProfileBodySchema = z.object({
   brandName: z
     .string()
     .trim()
@@ -36,7 +36,30 @@ export const completeBusinessBodySchema = z.object({
     .max(5000, 'Business description must be 5000 characters or less'),
 })
 
-export const updateBusinessBodySchema = completeBusinessBodySchema
+const optionalReferralCodeField = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null || value === '') {
+      return null
+    }
+
+    return value
+  },
+  z.union([
+    z
+      .string()
+      .trim()
+      .min(2, 'Referral code must be at least 2 characters')
+      .max(32, 'Referral code must be 32 characters or less')
+      .regex(/^[A-Za-z0-9_-]+$/, 'Referral code may only contain letters, numbers, hyphens, and underscores'),
+    z.null(),
+  ]),
+)
+
+export const completeBusinessBodySchema = businessProfileBodySchema.extend({
+  referralCode: optionalReferralCodeField.optional(),
+})
+
+export const updateBusinessBodySchema = businessProfileBodySchema
 
 export const catalogueFileParamsSchema = z.object({
   fileId: z.string().uuid(),

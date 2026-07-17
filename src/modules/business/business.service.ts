@@ -1,5 +1,6 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
+import { applyReferralCodeIfPresent } from '../affiliates/affiliates.service.js'
 import type { CompleteBusinessBody, UpdateBusinessBody } from './business.schemas.js'
 import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
@@ -71,10 +72,16 @@ export async function completeBusiness(auth: AuthContext, input: CompleteBusines
     return toBusinessResponse(profile)
   }
 
+  // Validate referral before completing so an invalid code never saves the profile.
+  await applyReferralCodeIfPresent(auth.organizationId, input.referralCode, { dryRun: true })
+
   const completed = await businessRepository.completeProfile(
     auth.organizationId,
     bodyToProfilePatch(input),
   )
+
+  await applyReferralCodeIfPresent(auth.organizationId, input.referralCode)
+
   return toBusinessResponse(completed)
 }
 
