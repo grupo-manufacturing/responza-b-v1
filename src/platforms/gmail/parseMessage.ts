@@ -24,12 +24,15 @@ export type GmailApiMessage = {
 
 export type ParsedGmailMessage = {
   id: string
+  threadId?: string
   from: string
   to: string
   subject: string
   snippet: string
   bodyHtml: string | null
   receivedAt: string
+  messageIdHeader?: string
+  references?: string
 }
 
 function decodeBase64Url(data: string): string {
@@ -142,14 +145,20 @@ export function parseGmailMessage(message: GmailApiMessage, options?: { includeB
 
   const headers = message.payload?.headers
   const includeBody = options?.includeBody ?? false
+  const messageIdHeader = getHeader(headers, 'Message-ID')
+  const references = getHeader(headers, 'References')
+  const threadId = message.threadId?.trim() ?? ''
 
   return {
     id,
+    ...(threadId.length > 0 ? { threadId } : {}),
     from: getHeader(headers, 'From'),
     to: getHeader(headers, 'To'),
     subject: getHeader(headers, 'Subject') || '(No subject)',
     snippet: message.snippet?.trim() ?? '',
     bodyHtml: includeBody ? resolveBodyHtml(message.payload) : null,
     receivedAt: parseReceivedAt(message.internalDate),
+    ...(messageIdHeader.length > 0 ? { messageIdHeader } : {}),
+    ...(references.length > 0 ? { references } : {}),
   }
 }
