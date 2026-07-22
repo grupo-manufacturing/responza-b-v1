@@ -33,6 +33,9 @@ const envSchema = z.object({
   INSTAGRAM_APP_ID: z.string().default(''),
   INSTAGRAM_APP_SECRET: z.string().default(''),
   INSTAGRAM_REDIRECT_URI: z.string().default(''),
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
+  GMAIL_REDIRECT_URI: z.string().default(''),
   AI_ENABLED: z
     .string()
     .default('false')

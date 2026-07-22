@@ -38,6 +38,15 @@ export function createIntegrationsRouter(): Router {
       .catch(next)
   })
 
+  router.get('/gmail/status', (req, res, next) => {
+    void integrationsService
+      .getGmailConnectionSummary(req.auth!)
+      .then((result) => {
+        res.status(200).json(result)
+      })
+      .catch(next)
+  })
+
   router.post(
     '/:platform/connect',
     validateRequest({ params: integrationPlatformParamsSchema, body: connectIntegrationBodySchema }),

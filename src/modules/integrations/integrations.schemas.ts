@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const integrationPlatformSchema = z.enum(['whatsapp', 'instagram'])
+const integrationPlatformSchema = z.enum(['whatsapp', 'instagram', 'gmail'])
 
 export const integrationPlatformParamsSchema = z.object({
   platform: integrationPlatformSchema,
@@ -43,4 +43,14 @@ export const instagramIntegrationMetadataSchema = z.object({
   user_id: z.string().trim().min(1),
   username: z.string().trim().min(1).optional(),
   profile_picture_url: z.string().trim().url().optional(),
+})
+
+export const gmailIntegrationMetadataSchema = z.object({
+  email: z.string().trim().email(),
+  google_user_id: z.string().trim().min(1).optional(),
+  display_name: z.string().trim().min(1).optional(),
+  profile_picture_url: z.string().trim().url().optional(),
+  scopes: z.array(z.string().trim().min(1)).optional(),
+  history_id: z.string().trim().min(1).optional(),
+  watch_expiration: z.string().trim().min(1).optional(),
 })

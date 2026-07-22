@@ -1,6 +1,7 @@
 import { AppError } from '../../../shared/errors/index.js'
 import type {
   IntegrationCredentials,
+  GmailIntegrationMetadata,
   InstagramIntegrationMetadata,
   IntegrationPlatform,
   WhatsAppIntegrationMetadata,
@@ -12,11 +13,13 @@ import {
 
 export type IntegrationCredentialsRow = IntegrationRecord & {
   access_token: string
-  metadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata
+  refresh_token?: string | null
+  token_expires_at?: string | null
+  metadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata | GmailIntegrationMetadata
 }
 
 export const INTEGRATION_CREDENTIAL_COLUMNS =
-  'id, organization_id, platform, status, access_token, metadata'
+  'id, organization_id, platform, status, access_token, refresh_token, token_expires_at, metadata'
 
 export function toIntegrationCredentials(row: IntegrationCredentialsRow): IntegrationCredentials {
   return {
@@ -43,7 +46,7 @@ export function normalizeIntegrationCredentialsRow(
     throw new AppError(500, 'INTERNAL_ERROR', 'Integration access token is missing')
   }
 
-  let normalizedMetadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata
+  let normalizedMetadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata | GmailIntegrationMetadata
 
   if (platform === 'whatsapp') {
     const phoneNumberId = metadata.phone_number_id
@@ -95,6 +98,38 @@ export function normalizeIntegrationCredentialsRow(
         ? { profile_picture_url: profilePictureUrl }
         : {}),
     }
+  } else if (platform === 'gmail') {
+    const email = metadata.email
+    if (typeof email !== 'string' || email.length === 0) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Integration metadata is missing email')
+    }
+
+    const googleUserId = metadata.google_user_id
+    const displayName = metadata.display_name
+    const profilePictureUrl = metadata.profile_picture_url
+    const scopes = metadata.scopes
+    const historyId = metadata.history_id
+    const watchExpiration = metadata.watch_expiration
+
+    normalizedMetadata = {
+      email,
+      ...(typeof googleUserId === 'string' && googleUserId.length > 0
+        ? { google_user_id: googleUserId }
+        : {}),
+      ...(typeof displayName === 'string' && displayName.length > 0
+        ? { display_name: displayName }
+        : {}),
+      ...(typeof profilePictureUrl === 'string' && profilePictureUrl.length > 0
+        ? { profile_picture_url: profilePictureUrl }
+        : {}),
+      ...(Array.isArray(scopes) && scopes.length > 0
+        ? { scopes: scopes.filter((scope): scope is string => typeof scope === 'string') }
+        : {}),
+      ...(typeof historyId === 'string' && historyId.length > 0 ? { history_id: historyId } : {}),
+      ...(typeof watchExpiration === 'string' && watchExpiration.length > 0
+        ? { watch_expiration: watchExpiration }
+        : {}),
+    }
   } else {
     throw new AppError(
       500,
@@ -106,6 +141,18 @@ export function normalizeIntegrationCredentialsRow(
   return {
     ...normalizeIntegrationRecord(row),
     access_token: accessToken,
+    refresh_token:
+      typeof row.refresh_token === 'string'
+        ? row.refresh_token
+        : row.refresh_token === null
+          ? null
+          : undefined,
+    token_expires_at:
+      typeof row.token_expires_at === 'string'
+        ? row.token_expires_at
+        : row.token_expires_at === null
+          ? null
+          : undefined,
     metadata: normalizedMetadata,
   }
 }
@@ -132,4 +179,16 @@ export function throwInstagramCredentialStoreError(error: { code?: string } | nu
   }
 
   throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store Instagram credentials')
+}
+
+export function throwGmailCredentialStoreError(error: { code?: string } | null): never {
+  if (error?.code === '23505') {
+    throw new AppError(
+      409,
+      'CONFLICT',
+      'This Gmail account is already connected to another organization',
+    )
+  }
+
+  throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store Gmail credentials')
 }

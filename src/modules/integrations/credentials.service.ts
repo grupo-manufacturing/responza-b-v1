@@ -1,4 +1,4 @@
-import type { IntegrationCredentials } from './integrations.constants.js'
+import type { GmailIntegrationCredentials, IntegrationCredentials } from './integrations.constants.js'
 import * as integrationsRepository from './integrations.repository.js'
 import { toIntegrationCredentials } from './integrations.repository.js'
 
@@ -70,4 +70,32 @@ export async function resolveInstagramIntegrationByBusinessId(
   }
 
   return toIntegrationCredentials(row)
+}
+
+export async function getGmailCredentialsForOrganization(
+  organizationId: string,
+): Promise<GmailIntegrationCredentials | null> {
+  const row = await integrationsRepository.findGmailCredentialsByOrganization(organizationId)
+  if (row === null) {
+    return null
+  }
+
+  const credentials = toIntegrationCredentials(row)
+
+  return {
+    ...credentials,
+    refreshToken:
+      typeof row.refresh_token === 'string'
+        ? row.refresh_token
+        : row.refresh_token === null
+          ? null
+          : null,
+    tokenExpiresAt:
+      typeof row.token_expires_at === 'string'
+        ? row.token_expires_at
+        : row.token_expires_at === null
+          ? null
+          : null,
+    metadata: credentials.metadata as GmailIntegrationCredentials['metadata'],
+  }
 }

@@ -4,12 +4,18 @@ import {
   fetchInstagramUserInfo,
   subscribeInstagramWebhooks,
 } from '../../platforms/instagram/index.js'
+import {
+  exchangeGmailAccessToken,
+  fetchGmailProfile,
+  revokeGmailToken,
+} from '../../platforms/gmail/index.js'
 import { backfillInstagramParticipantProfiles } from '../../platforms/instagram/enrichment.js'
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { logger } from '../../shared/logger.js'
 import { syncChannel } from '../inbox/inbox.service.js'
 import {
+  getGmailCredentialsForOrganization,
   getInstagramCredentialsForOrganization,
   getWhatsAppCredentialsForOrganization,
 } from './credentials.service.js'
@@ -19,11 +25,17 @@ import {
   integrationPlatformToApi,
   integrationStatusToApi,
   type IntegrationPlatform,
+  type GmailIntegrationMetadata,
   type InstagramIntegrationMetadata,
   type WhatsAppIntegrationMetadata,
 } from './integrations.constants.js'
 import type { ConnectIntegrationBody } from './integrations.schemas.js'
-import { whatsAppIntegrationMetadataSchema, whatsAppSessionInfoSchema, instagramIntegrationMetadataSchema } from './integrations.schemas.js'
+import {
+  gmailIntegrationMetadataSchema,
+  whatsAppIntegrationMetadataSchema,
+  whatsAppSessionInfoSchema,
+  instagramIntegrationMetadataSchema,
+} from './integrations.schemas.js'
 import * as integrationsRepository from './integrations.repository.js'
 import type { IntegrationRecord } from './integrations.repository.js'
 
@@ -61,6 +73,14 @@ function toInstagramSummary(
   }
 }
 
+function toGmailSummary(metadata: GmailIntegrationMetadata) {
+  return {
+    email: metadata.email,
+    display_name: metadata.display_name ?? null,
+    profile_picture_url: metadata.profile_picture_url ?? null,
+  }
+}
+
 const CHANNEL_DISPLAY_NAMES: Record<'whatsapp' | 'instagram', string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
@@ -94,6 +114,8 @@ export async function connectIntegration(
       return connectWhatsAppIntegration(auth, body)
     case 'instagram':
       return connectInstagramIntegration(auth, body)
+    case 'gmail':
+      return connectGmailIntegration(auth, body)
     default:
       throw new AppError(400, 'BAD_REQUEST', `Unsupported platform: ${platform}`)
   }
@@ -161,8 +183,43 @@ async function connectInstagramIntegration(auth: AuthContext, body: ConnectInteg
   return result
 }
 
+async function connectGmailIntegration(auth: AuthContext, body: ConnectIntegrationBody) {
+  const code = body.code?.trim()
+  if (code === undefined || code.length === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'code is required')
+  }
+
+  const tokenResult = await exchangeGmailAccessToken(code, body.redirect_uri)
+  const profile = await fetchGmailProfile(tokenResult.accessToken)
+
+  const metadata = gmailIntegrationMetadataSchema.parse({
+    email: profile.email,
+    google_user_id: profile.google_user_id,
+    display_name: profile.display_name,
+    profile_picture_url: profile.profile_picture_url,
+    scopes: tokenResult.scopes,
+    history_id: profile.history_id,
+  })
+
+  return storeGmailCredentials(auth.organizationId, {
+    accessToken: tokenResult.accessToken,
+    refreshToken: tokenResult.refreshToken!,
+    tokenExpiresAt: tokenResult.expiresAt?.toISOString() ?? null,
+    metadata,
+  })
+}
+
 export async function disconnectIntegration(auth: AuthContext, platformParam: string) {
   const platform = integrationPlatformFromApi(platformParam)
+
+  if (platform === 'gmail') {
+    const credentials = await getGmailCredentialsForOrganization(auth.organizationId)
+    const revokeToken = credentials?.refreshToken ?? credentials?.accessToken
+    if (revokeToken !== undefined && revokeToken !== null && revokeToken.length > 0) {
+      await revokeGmailToken(revokeToken)
+    }
+  }
+
   const updated = await integrationsRepository.setIntegrationDisconnected(
     auth.organizationId,
     platform,
@@ -250,6 +307,40 @@ async function storeInstagramCredentials(
   }
 }
 
+async function storeGmailCredentials(
+  organizationId: string,
+  input: {
+    accessToken: string
+    refreshToken: string
+    tokenExpiresAt: string | null
+    metadata: GmailIntegrationMetadata
+  },
+) {
+  const metadata = gmailIntegrationMetadataSchema.parse(input.metadata)
+  const accessToken = input.accessToken.trim()
+  const refreshToken = input.refreshToken.trim()
+
+  if (accessToken.length === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'access_token is required')
+  }
+
+  if (refreshToken.length === 0) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'refresh_token is required')
+  }
+
+  const integration = await integrationsRepository.upsertGmailCredentials(organizationId, {
+    accessToken,
+    refreshToken,
+    tokenExpiresAt: input.tokenExpiresAt,
+    metadata,
+  })
+
+  return {
+    integration: toIntegrationResponse(integration),
+    gmail: toGmailSummary(metadata),
+  }
+}
+
 export async function getWhatsAppConnectionSummary(auth: AuthContext) {
   const credentials = await getWhatsAppCredentialsForOrganization(auth.organizationId)
   if (credentials === null) {
@@ -307,5 +398,22 @@ export async function getInstagramConnectionSummary(auth: AuthContext) {
   return {
     connected: true,
     instagram: toInstagramSummary(metadata, profilePictureUrl),
+  }
+}
+
+export async function getGmailConnectionSummary(auth: AuthContext) {
+  const credentials = await getGmailCredentialsForOrganization(auth.organizationId)
+  if (credentials === null) {
+    return {
+      connected: false,
+      gmail: null,
+    }
+  }
+
+  const metadata = credentials.metadata
+
+  return {
+    connected: true,
+    gmail: toGmailSummary(metadata),
   }
 }

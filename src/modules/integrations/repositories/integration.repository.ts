@@ -71,6 +71,8 @@ export async function setIntegrationDisconnected(
       .update({
         status: 'disconnected',
         access_token: null,
+        refresh_token: null,
+        token_expires_at: null,
         metadata: null,
       })
       .eq('organization_id', organizationId)
