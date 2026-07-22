@@ -89,3 +89,26 @@ export async function upsertGmailCredentials(
 
   return normalizeIntegrationRecord(data)
 }
+
+export async function updateGmailAccessToken(
+  organizationId: string,
+  input: {
+    accessToken: string
+    tokenExpiresAt: string | null
+  },
+): Promise<void> {
+  const client = getSupabaseAdminClient()
+  const { error } = await client
+    .from('integrations')
+    .update({
+      access_token: input.accessToken,
+      token_expires_at: input.tokenExpiresAt,
+    })
+    .eq('organization_id', organizationId)
+    .eq('platform', 'gmail')
+    .eq('status', 'connected')
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to update Gmail access token')
+  }
+}

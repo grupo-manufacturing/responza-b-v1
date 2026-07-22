@@ -6,6 +6,7 @@ import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules
 import { createBusinessRouter } from '../../modules/business/business.routes.js'
 import { createDashboardRouter } from '../../modules/dashboard/dashboard.routes.js'
 import { createConversationsRouter } from '../../modules/inbox/inbox.routes.js'
+import { createGmailRouter } from '../../modules/gmail/gmail.routes.js'
 import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
 import { createInstagramOAuthRouter } from '../../modules/integrations/oauth/instagram.routes.js'
 import { createGmailOAuthRouter } from '../../modules/integrations/oauth/gmail.routes.js'
@@ -42,6 +43,7 @@ export function createAppRouter(): Router {
   subscriptionGatedRouter.use(requireActiveSubscriptionMiddleware)
   subscriptionGatedRouter.use('/business', createBusinessRouter())
   subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
+  subscriptionGatedRouter.use('/gmail', createGmailRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
   subscriptionGatedRouter.use('/ai', createAiRouter())
 
