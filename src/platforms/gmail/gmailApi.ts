@@ -1,4 +1,7 @@
-import { AppError } from '../../shared/errors/index.js'
+import {
+  mapGmailApiStatusToAppError,
+  throwGmailNetworkFailure,
+} from './gmailErrors.js'
 
 type GmailApiErrorBody = {
   error?: {
@@ -23,22 +26,6 @@ function gmailApiErrorMessage(body: GmailApiErrorBody, fallback: string): string
   return fallback
 }
 
-function mapGmailStatusToAppError(status: number, message: string): AppError {
-  if (status === 401 || status === 403) {
-    return new AppError(502, 'BAD_REQUEST', 'Gmail authorization failed. Reconnect Gmail in Integrations.')
-  }
-
-  if (status === 404) {
-    return new AppError(404, 'NOT_FOUND', 'Email not found')
-  }
-
-  if (status === 429) {
-    return new AppError(429, 'RATE_LIMITED', 'Gmail rate limit exceeded. Please try again shortly.')
-  }
-
-  return new AppError(502, 'BAD_REQUEST', message)
-}
-
 export async function gmailApiFetch<T>(
   accessToken: string,
   path: string,
@@ -48,14 +35,19 @@ export async function gmailApiFetch<T>(
     ? path
     : `https://gmail.googleapis.com/gmail/v1/${path.replace(/^\//, '')}`
 
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    })
+  } catch {
+    throwGmailNetworkFailure()
+  }
 
   if (!response.ok) {
     let body: GmailApiErrorBody = {}
@@ -65,7 +57,7 @@ export async function gmailApiFetch<T>(
       body = {}
     }
 
-    throw mapGmailStatusToAppError(
+    throw mapGmailApiStatusToAppError(
       response.status,
       gmailApiErrorMessage(body, `Gmail API request failed (${response.status})`),
     )

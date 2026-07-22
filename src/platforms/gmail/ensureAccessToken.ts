@@ -1,6 +1,8 @@
 import { getGmailCredentialsForOrganization } from '../../modules/integrations/credentials.service.js'
 import { updateGmailAccessToken } from '../../modules/integrations/repositories/gmail.repository.js'
 import { AppError } from '../../shared/errors/index.js'
+import { disconnectGmailAndThrowRevoked } from './gmailAuthFailure.js'
+import { GMAIL_NOT_CONNECTED_MESSAGE, isGmailRevokedError } from './gmailErrors.js'
 import { refreshGmailAccessToken } from './refreshAccessToken.js'
 
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000
@@ -21,7 +23,7 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
 export async function ensureValidGmailAccessToken(organizationId: string): Promise<string> {
   const credentials = await getGmailCredentialsForOrganization(organizationId)
   if (credentials === null) {
-    throw new AppError(402, 'INTEGRATIONS_REQUIRED', 'Connect Gmail in Integrations to continue.')
+    throw new AppError(402, 'INTEGRATIONS_REQUIRED', GMAIL_NOT_CONNECTED_MESSAGE)
   }
 
   if (!isTokenExpired(credentials.tokenExpiresAt)) {
@@ -30,18 +32,22 @@ export async function ensureValidGmailAccessToken(organizationId: string): Promi
 
   const refreshToken = credentials.refreshToken
   if (refreshToken === null || refreshToken.trim().length === 0) {
-    throw new AppError(
-      502,
-      'BAD_REQUEST',
-      'Gmail refresh token is missing. Reconnect Gmail in Integrations.',
-    )
+    return disconnectGmailAndThrowRevoked(organizationId)
   }
 
-  const refreshed = await refreshGmailAccessToken(refreshToken)
-  await updateGmailAccessToken(organizationId, {
-    accessToken: refreshed.accessToken,
-    tokenExpiresAt: refreshed.expiresAt?.toISOString() ?? null,
-  })
+  try {
+    const refreshed = await refreshGmailAccessToken(refreshToken)
+    await updateGmailAccessToken(organizationId, {
+      accessToken: refreshed.accessToken,
+      tokenExpiresAt: refreshed.expiresAt?.toISOString() ?? null,
+    })
 
-  return refreshed.accessToken
+    return refreshed.accessToken
+  } catch (error: unknown) {
+    if (isGmailRevokedError(error)) {
+      return disconnectGmailAndThrowRevoked(organizationId)
+    }
+
+    throw error
+  }
 }

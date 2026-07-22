@@ -1,5 +1,13 @@
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
+import {
+  isInvalidRefreshTokenResponse,
+  isNetworkFetchError,
+  mapGoogleOAuthHttpStatusToAppError,
+  parseGoogleOAuthErrorBody,
+  throwGmailNetworkFailure,
+  throwGmailRevokedError,
+} from './gmailErrors.js'
 
 type GoogleRefreshTokenResponse = {
   access_token?: string
@@ -31,21 +39,40 @@ export async function refreshGmailAccessToken(refreshToken: string): Promise<Gma
   form.append('grant_type', 'refresh_token')
   form.append('refresh_token', trimmedRefreshToken)
 
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    body: form.toString(),
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      body: form.toString(),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+  } catch (error: unknown) {
+    if (isNetworkFetchError(error)) {
+      throwGmailNetworkFailure()
+    }
+
+    throw error
+  }
 
   if (!response.ok) {
     const errorText = await response.text()
+    const oauthError = parseGoogleOAuthErrorBody(errorText)
+
+    if (isInvalidRefreshTokenResponse(oauthError)) {
+      throwGmailRevokedError()
+    }
+
+    const mappedStatusError = mapGoogleOAuthHttpStatusToAppError(response.status)
+    if (mappedStatusError !== null) {
+      throw mappedStatusError
+    }
+
     throw new AppError(
       502,
       'BAD_REQUEST',
-      'Failed to refresh Gmail access token. Reconnect Gmail in Integrations.',
-      { detail: errorText },
+      'Failed to refresh Gmail access token. Please try again.',
     )
   }
 
