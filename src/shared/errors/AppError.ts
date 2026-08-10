@@ -13,6 +13,13 @@ export type ErrorCode =
   | 'EMAIL_NOT_VERIFIED'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
+  | 'INGESTED_CONTENT_NOT_FOUND'
+  | 'INDEXING_NO_INGESTED_CONTENT'
+  | 'KNOWLEDGE_BASE_NOT_FOUND'
+  | 'JOB_IN_PROGRESS'
+  | 'JOB_NOT_FOUND'
+  | 'JOB_NOT_RETRYABLE'
+  | 'SERVICE_UNAVAILABLE'
 
 export class AppError extends Error {
   readonly statusCode: number

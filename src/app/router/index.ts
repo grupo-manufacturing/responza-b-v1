@@ -10,6 +10,7 @@ import { createGmailRouter } from '../../modules/gmail/gmail.routes.js'
 import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
 import { createInstagramOAuthRouter } from '../../modules/integrations/oauth/instagram.routes.js'
 import { createGmailOAuthRouter } from '../../modules/integrations/oauth/gmail.routes.js'
+import { createKnowledgeRouter } from '../../modules/knowledge/knowledge.routes.js'
 import { createMessagingRouter } from '../../modules/messaging/messaging.routes.js'
 import { createRazorpayWebhookRouter } from '../../modules/razorpay/razorpay.webhook.routes.js'
 import { createSubscriptionRouter } from '../../modules/subscription/subscription.routes.js'
@@ -46,6 +47,7 @@ export function createAppRouter(): Router {
   subscriptionGatedRouter.use('/gmail', createGmailRouter())
   subscriptionGatedRouter.use('/conversations', createConversationsRouter())
   subscriptionGatedRouter.use('/ai', createAiRouter())
+  subscriptionGatedRouter.use('/knowledge', createKnowledgeRouter())
 
   const paidPlanRouter = Router()
   paidPlanRouter.use(requirePaidSubscriptionMiddleware)

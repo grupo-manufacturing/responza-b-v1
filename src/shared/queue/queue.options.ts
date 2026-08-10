@@ -35,3 +35,10 @@ export function aiDefaultJobOptions(): JobsOptions {
     backoffDelayMs: 2000,
   })
 }
+
+export function knowledgeDefaultJobOptions(): JobsOptions {
+  return buildQueueJobOptions({
+    attempts: 1,
+    backoffDelayMs: 5000,
+  })
+}

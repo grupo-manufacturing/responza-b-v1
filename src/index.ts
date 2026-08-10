@@ -7,6 +7,7 @@ import { logger } from './shared/logger.js'
 import { closeRedisConnection } from './shared/redis/index.js'
 import {
   closeAiQueue,
+  closeKnowledgeQueue,
   closeMediaQueue,
   closeWebhookQueue,
 } from './shared/queue/index.js'
@@ -60,6 +61,7 @@ async function shutdown(signal: string): Promise<void> {
   await closeWebhookQueue()
   await closeMediaQueue()
   await closeAiQueue()
+  await closeKnowledgeQueue()
   await closeRedisConnection()
 
   clearTimeout(forceExitTimer)

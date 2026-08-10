@@ -23,6 +23,14 @@ export {
   type AiQueueJobData,
 } from './ai.queue.js'
 export {
+  KNOWLEDGE_JOB_NAMES,
+  KNOWLEDGE_QUEUE_NAME,
+  closeKnowledgeQueue,
+  enqueueKnowledgeJob,
+  type KnowledgeQueueJobData,
+  type KnowledgeQueueJobName,
+} from './knowledge.queue.js'
+export {
   attachWorkerLifecycleLogs,
   isDuplicateQueueJobError,
   isQueueJobLastAttempt,
@@ -32,6 +40,7 @@ export {
 export {
   aiDefaultJobOptions,
   buildQueueJobOptions,
+  knowledgeDefaultJobOptions,
   mediaDefaultJobOptions,
   webhookDefaultJobOptions,
 } from './queue.options.js'

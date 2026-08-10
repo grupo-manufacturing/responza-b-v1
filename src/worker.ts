@@ -2,6 +2,7 @@ import { Worker } from 'bullmq'
 
 import { loadEnv } from './shared/config/index.js'
 import { processAiQueueJob } from './modules/ai/ai.jobs.service.js'
+import { processKnowledgeQueueJob } from './modules/knowledge/jobs/knowledge-job.worker.js'
 import { processInboundMediaIngestionJob } from './modules/media/media.ingestion.worker.js'
 import { processInstagramWebhookJob, processWhatsAppWebhookJob } from './modules/messaging/webhook.worker.js'
 import { logger } from './shared/logger.js'
@@ -11,6 +12,12 @@ import {
   closeAiQueue,
   type AiQueueJobData,
 } from './shared/queue/ai.queue.js'
+import {
+  KNOWLEDGE_JOB_NAMES,
+  KNOWLEDGE_QUEUE_NAME,
+  closeKnowledgeQueue,
+  type KnowledgeQueueJobData,
+} from './shared/queue/knowledge.queue.js'
 import {
   MEDIA_JOB_NAMES,
   MEDIA_QUEUE_NAME,
@@ -112,9 +119,33 @@ const aiWorker = new Worker(
   },
 )
 
+const knowledgeWorker = new Worker(
+  KNOWLEDGE_QUEUE_NAME,
+  async (job) => {
+    await withJobTimeout(
+      env.KNOWLEDGE_JOB_TIMEOUT_MS,
+      async () => {
+        if (job.name === KNOWLEDGE_JOB_NAMES.ingest || job.name === KNOWLEDGE_JOB_NAMES.index) {
+          await processKnowledgeQueueJob(job.name, job.data as KnowledgeQueueJobData)
+          logger.info(`Knowledge job processed: ${job.id ?? 'unknown'}`)
+          return
+        }
+
+        throw new Error(`Unhandled knowledge job type: ${job.name}`)
+      },
+      `Knowledge job timed out after ${env.KNOWLEDGE_JOB_TIMEOUT_MS}ms`,
+    )
+  },
+  {
+    connection: getRedisConnectionOptions(),
+    concurrency: env.KNOWLEDGE_WORKER_CONCURRENCY,
+  },
+)
+
 attachWorkerLifecycleLogs(webhookWorker, WEBHOOK_QUEUE_NAME)
 attachWorkerLifecycleLogs(mediaWorker, MEDIA_QUEUE_NAME)
 attachWorkerLifecycleLogs(aiWorker, AI_QUEUE_NAME)
+attachWorkerLifecycleLogs(knowledgeWorker, KNOWLEDGE_QUEUE_NAME)
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) {
@@ -126,9 +157,11 @@ async function shutdown(signal: string): Promise<void> {
   await webhookWorker.close()
   await mediaWorker.close()
   await aiWorker.close()
+  await knowledgeWorker.close()
   await closeWebhookQueue()
   await closeMediaQueue()
   await closeAiQueue()
+  await closeKnowledgeQueue()
   await closeRedisConnection()
 }
 
@@ -152,5 +185,5 @@ process.on('SIGTERM', () => {
 })
 
 logger.info(
-  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY}, ai: ${AI_QUEUE_NAME} x${env.AI_WORKER_CONCURRENCY})`,
+  `Workers started (webhooks: ${WEBHOOK_QUEUE_NAME} x${env.WEBHOOK_WORKER_CONCURRENCY}, media: ${MEDIA_QUEUE_NAME} x${env.MEDIA_WORKER_CONCURRENCY}, ai: ${AI_QUEUE_NAME} x${env.AI_WORKER_CONCURRENCY}, knowledge: ${KNOWLEDGE_QUEUE_NAME} x${env.KNOWLEDGE_WORKER_CONCURRENCY})`,
 )
