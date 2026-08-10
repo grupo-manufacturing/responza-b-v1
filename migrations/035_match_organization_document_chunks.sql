@@ -25,3 +25,6 @@ AS $$
   ORDER BY c.embedding <=> query_embedding
   LIMIT GREATEST(match_count, 1);
 $$;
+
+GRANT EXECUTE ON FUNCTION match_organization_document_chunks(vector, uuid, int) TO service_role;
+GRANT EXECUTE ON FUNCTION match_organization_document_chunks(vector, uuid, int) TO authenticated;

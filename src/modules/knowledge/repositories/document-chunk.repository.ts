@@ -1,6 +1,7 @@
 import { getSupabaseAdminClient } from '../../../shared/database/index.js'
 import { AppError } from '../../../shared/errors/index.js'
 import type { DocumentChunkInsert, DocumentChunkRecord } from '../jobs/knowledge-job.types.js'
+import { parseEmbedding } from '../retrieval/vector.utils.js'
 
 const COLUMNS = 'id, organization_id, source_type, source_ref, content, embedding, created_at'
 
@@ -11,7 +12,7 @@ function normalizeRecord(row: Record<string, unknown>): DocumentChunkRecord {
     source_type: row.source_type as string,
     source_ref: (row.source_ref as string | null) ?? null,
     content: row.content as string,
-    embedding: Array.isArray(row.embedding) ? (row.embedding as number[]) : null,
+    embedding: parseEmbedding(row.embedding),
     created_at: row.created_at as string,
   }
 }
@@ -94,4 +95,23 @@ export async function countDocumentChunksBySourceType(
   return [...counts.entries()]
     .map(([source_type, chunk_count]) => ({ source_type, chunk_count }))
     .sort((left, right) => left.source_type.localeCompare(right.source_type))
+}
+
+export async function findDocumentChunksForRetrieval(
+  organizationId: string,
+): Promise<DocumentChunkRecord[]> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('organization_document_chunks')
+    .select(COLUMNS)
+    .eq('organization_id', organizationId)
+    .not('embedding', 'is', null)
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load document chunks for retrieval')
+  }
+
+  return (data ?? [])
+    .map((row) => normalizeRecord(row as Record<string, unknown>))
+    .filter((chunk) => chunk.embedding !== null)
 }
