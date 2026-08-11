@@ -49,9 +49,9 @@ import {
 import type { InboundMediaContentType } from '../media/media.constants.js'
 import { messageMediaExists } from '../../shared/storage/index.js'
 import {
-  enqueueAgentAutoReplyJob,
-  isAgentAutoReplyPlatform,
-} from './agent-auto-reply.service.js'
+  enqueueAgentDraftReplyJob,
+  isAgentDraftReplyPlatform,
+} from './agent-draft-reply.service.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -114,15 +114,14 @@ function isInboundMediaContentType(
   return contentType !== 'text'
 }
 
-function scheduleAgentAutoReplyIfEligible(input: {
+function scheduleAgentDraftReplyIfEligible(input: {
   organizationId: string
   platform: IntegrationPlatform
-  conversationId: string
   messageId: string
   contentType: MessageContentType
   content: string
 }): void {
-  if (!isAgentAutoReplyPlatform(input.platform)) {
+  if (!isAgentDraftReplyPlatform(input.platform)) {
     return
   }
 
@@ -135,9 +134,8 @@ function scheduleAgentAutoReplyIfEligible(input: {
     return
   }
 
-  void enqueueAgentAutoReplyJob({
+  void enqueueAgentDraftReplyJob({
     organizationId: input.organizationId,
-    conversationId: input.conversationId,
     messageId: input.messageId,
     question,
   }).catch((error: unknown) => {
@@ -317,6 +315,7 @@ async function toMessageResponse(message: MessageRecord) {
     mediaUrl,
     mimeType: message.mime_type,
     status: messageStatusToApi(message.status),
+    suggestedReply: message.suggested_reply,
     createdAt: message.created_at,
   }
 }
@@ -671,10 +670,9 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
     })
   }
 
-  scheduleAgentAutoReplyIfEligible({
+  scheduleAgentDraftReplyIfEligible({
     organizationId: input.organizationId,
     platform: input.platform,
-    conversationId: conversation.id,
     messageId: message.id,
     contentType,
     content,

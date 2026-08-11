@@ -59,7 +59,7 @@ export type MessageRecord = {
   file_size_bytes: number | null
   status: MessageStatus
   send_source: 'human' | 'agent'
-  trigger_message_id: string | null
+  suggested_reply: string | null
   created_at: string
 }
 

@@ -128,8 +128,8 @@ export async function executeAiQueueJob(data: AiQueueJobData): Promise<unknown> 
       return suggestReply(auth, data.payload as SuggestReplyBody)
     case 'conversation-analytics':
       return analyzeConversation(auth, data.payload as ConversationAnalyticsBody)
-    case 'agent-auto-reply':
-      throw new AppError(500, 'INTERNAL_ERROR', 'Agent auto-reply jobs must be processed by the worker directly')
+    case 'agent-draft-reply':
+      throw new AppError(500, 'INTERNAL_ERROR', 'Agent draft reply jobs must be processed by the worker directly')
     default: {
       const exhaustive: never = data.type
       throw new AppError(500, 'INTERNAL_ERROR', `Unsupported AI job type: ${String(exhaustive)}`)
