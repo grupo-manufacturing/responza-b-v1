@@ -96,6 +96,9 @@ export async function updateBusiness(auth: AuthContext, input: UpdateBusinessBod
     auth.organizationId,
     bodyToProfilePatch(input),
   )
+
+  void enqueueKnowledgeBuildForOrganization(auth.organizationId)
+
   return toBusinessResponse(updated)
 }
 
@@ -146,6 +149,8 @@ export async function uploadCatalogueFile(
 
   const profile = await businessRepository.addCatalogueFile(auth.organizationId, catalogueFile)
 
+  void enqueueKnowledgeBuildForOrganization(auth.organizationId)
+
   return {
     file: toCatalogueFileResponse(catalogueFile),
     profile: toBusinessResponse(profile),
@@ -165,6 +170,8 @@ export async function deleteCatalogueFile(auth: AuthContext, fileId: string) {
       // Profile metadata is already updated; orphaned storage can be cleaned later.
     }
   }
+
+  void enqueueKnowledgeBuildForOrganization(auth.organizationId)
 
   return toBusinessResponse(profile)
 }

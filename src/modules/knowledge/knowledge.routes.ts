@@ -14,5 +14,14 @@ export function createKnowledgeRouter(): Router {
       .catch(next)
   })
 
+  router.get('/agent-status', (req, res, next) => {
+    void knowledgeService
+      .getAgentStatus(req.auth!)
+      .then((result) => {
+        res.status(200).json(result)
+      })
+      .catch(next)
+  })
+
   return router
 }

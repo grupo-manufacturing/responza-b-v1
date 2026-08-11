@@ -113,6 +113,79 @@ export async function findActiveKnowledgeJob(
   return normalizeRecord(data as Record<string, unknown>)
 }
 
+export async function findAnyActiveKnowledgeJob(
+  organizationId: string,
+): Promise<KnowledgeJobRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('organization_knowledge_jobs')
+    .select(COLUMNS)
+    .eq('organization_id', organizationId)
+    .in('status', ['pending', 'running'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to check active knowledge jobs')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeRecord(data as Record<string, unknown>)
+}
+
+export async function findLatestFailedKnowledgeJob(
+  organizationId: string,
+): Promise<KnowledgeJobRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('organization_knowledge_jobs')
+    .select(COLUMNS)
+    .eq('organization_id', organizationId)
+    .eq('status', 'failed')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load failed knowledge jobs')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeRecord(data as Record<string, unknown>)
+}
+
+export async function findLatestCompletedIndexJob(
+  organizationId: string,
+): Promise<KnowledgeJobRecord | null> {
+  const client = getSupabaseAdminClient()
+  const { data, error } = await client
+    .from('organization_knowledge_jobs')
+    .select(COLUMNS)
+    .eq('organization_id', organizationId)
+    .eq('type', 'index')
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error !== null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load completed index jobs')
+  }
+
+  if (data === null) {
+    return null
+  }
+
+  return normalizeRecord(data as Record<string, unknown>)
+}
+
 export async function markKnowledgeJobRunning(jobId: string): Promise<KnowledgeJobRecord> {
   const client = getSupabaseAdminClient()
   const now = new Date().toISOString()
