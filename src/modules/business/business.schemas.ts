@@ -27,7 +27,6 @@ const businessProfileBodySchema = z.object({
     .min(1, 'Brand name is required')
     .max(200, 'Brand name must be 200 characters or less'),
   websiteUrl: optionalHttpUrlField,
-  facebookPageUrl: optionalHttpUrlField,
   instagramPageUrl: optionalHttpUrlField,
   businessDescription: z
     .string()

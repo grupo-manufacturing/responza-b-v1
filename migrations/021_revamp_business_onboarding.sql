@@ -10,7 +10,6 @@ ALTER TABLE organization_business_profiles
 ALTER TABLE organization_business_profiles
   ADD COLUMN IF NOT EXISTS brand_name TEXT,
   ADD COLUMN IF NOT EXISTS website_url TEXT,
-  ADD COLUMN IF NOT EXISTS facebook_page_url TEXT,
   ADD COLUMN IF NOT EXISTS instagram_page_url TEXT,
   ADD COLUMN IF NOT EXISTS business_description TEXT,
   ADD COLUMN IF NOT EXISTS catalogue_files JSONB NOT NULL DEFAULT '[]'::jsonb;

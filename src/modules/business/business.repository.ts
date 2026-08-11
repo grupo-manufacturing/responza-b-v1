@@ -9,7 +9,6 @@ export type BusinessProfileRecord = {
   organization_id: string
   brand_name: string | null
   website_url: string | null
-  facebook_page_url: string | null
   instagram_page_url: string | null
   business_description: string | null
   catalogue_files: CatalogueFileRecord[]
@@ -21,13 +20,12 @@ export type BusinessProfileRecord = {
 export type BusinessProfileUpdatePatch = {
   brand_name?: string
   website_url?: string | null
-  facebook_page_url?: string | null
   instagram_page_url?: string | null
   business_description?: string
 }
 
 const PROFILE_COLUMNS =
-  'id, organization_id, brand_name, website_url, facebook_page_url, instagram_page_url, business_description, catalogue_files, completed_at, created_at, updated_at'
+  'id, organization_id, brand_name, website_url, instagram_page_url, business_description, catalogue_files, completed_at, created_at, updated_at'
 
 function normalizeCatalogueFiles(value: unknown): CatalogueFileRecord[] {
   if (!Array.isArray(value)) {
@@ -79,7 +77,6 @@ function normalizeProfileRecord(row: Record<string, unknown>): BusinessProfileRe
     organization_id: row.organization_id as string,
     brand_name: (row.brand_name as string | null) ?? null,
     website_url: (row.website_url as string | null) ?? null,
-    facebook_page_url: (row.facebook_page_url as string | null) ?? null,
     instagram_page_url: (row.instagram_page_url as string | null) ?? null,
     business_description: (row.business_description as string | null) ?? null,
     catalogue_files: normalizeCatalogueFiles(row.catalogue_files),

@@ -16,7 +16,6 @@ export function buildBusinessContextLines(profile: BusinessProfileRecord | null)
   const lines = [
     optionalLine('Brand', profile.brand_name),
     optionalLine('Website', profile.website_url),
-    optionalLine('Facebook page', profile.facebook_page_url),
     optionalLine('Instagram page', profile.instagram_page_url),
     optionalLine('About the business', profile.business_description),
   ].filter((line): line is string => line !== null)

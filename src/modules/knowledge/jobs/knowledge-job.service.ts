@@ -92,6 +92,24 @@ async function scheduleKnowledgeJobRun(job: KnowledgeJobRecord, delayMs = 0): Pr
   await enqueueKnowledgeJob(jobName, { jobId: job.id }, { delayMs })
 }
 
+export async function enqueueKnowledgeBuildForOrganization(organizationId: string): Promise<void> {
+  try {
+    await createIngestJob(organizationId)
+    logger.info(`Knowledge build started for organization ${organizationId}`)
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'JOB_IN_PROGRESS') {
+      logger.info(`Knowledge build already in progress for organization ${organizationId}`)
+      return
+    }
+
+    logger.error(
+      error instanceof Error
+        ? error
+        : new Error(`Failed to start knowledge build for organization ${organizationId}`),
+    )
+  }
+}
+
 export async function createIngestJob(organizationId: string): Promise<KnowledgeJobCreatedResponse> {
   await ensureNoActiveJob(organizationId, 'ingest')
 
@@ -210,6 +228,13 @@ export async function runIngestJob(jobId: string): Promise<void> {
     await insertIngestedSources(job.organization_id, ingestion.sources)
     await markKnowledgeJobCompleted(jobId)
     logger.info(`Ingest job finished: jobId=${jobId} organizationId=${job.organization_id}`)
+
+    try {
+      await createIndexJob(job.organization_id)
+      logger.info(`Index job scheduled after ingest for organization ${job.organization_id}`)
+    } catch (indexError) {
+      logger.error(indexError)
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Ingest job failed'
     logger.error(error)

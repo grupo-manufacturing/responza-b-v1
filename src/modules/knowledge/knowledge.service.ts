@@ -1,42 +1,13 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import { INGESTION_PREVIEW_LENGTH } from './knowledge.constants.js'
-import {
-  createIngestJob,
-  createIndexJob,
-  getKnowledgeJob,
-  retryKnowledgeJob,
-} from './jobs/knowledge-job.service.js'
-import type { KnowledgeJobCreatedResponse, KnowledgeJobResponse } from './jobs/knowledge-job.service.js'
+import { askBusinessAgent, toAskSourceReferences } from './ask/ask.service.js'
+import { ASK_SOURCE_PREVIEW_LENGTH } from './knowledge.constants.js'
+import type { AskBody } from './knowledge.schemas.js'
 import {
   countDocumentChunksByOrganizationId,
   countDocumentChunksBySourceType,
 } from './repositories/document-chunk.repository.js'
-import {
-  countIngestedSourcesByOrganizationId,
-  findIngestedSourcesByOrganizationId,
-} from './repositories/ingested-source.repository.js'
-import { askBusinessAgent, toAskSourceReferences } from './ask/ask.service.js'
-import { ASK_SOURCE_PREVIEW_LENGTH } from './knowledge.constants.js'
-import type { AskBody } from './knowledge.schemas.js'
-
-export type IngestionSourceResponse = {
-  id: string
-  source_type: string
-  source_ref: string | null
-  char_count: number
-  content_preview: string
-  created_at: string
-}
-
-export type IngestionResponse = {
-  organizationId: string
-  sources_ingested: number
-  total_characters: number
-  sources: IngestionSourceResponse[]
-  errors: string[]
-}
 
 export type KnowledgeBaseSourceSummary = {
   source_type: string
@@ -66,50 +37,6 @@ export type AskResponse = {
   answer: string
   is_fallback: boolean
   sources: AskSourceResponse[]
-}
-
-export async function startIngestion(auth: AuthContext): Promise<KnowledgeJobCreatedResponse> {
-  return createIngestJob(auth.organizationId)
-}
-
-export async function getIngestionResults(auth: AuthContext): Promise<IngestionResponse> {
-  const sources = await findIngestedSourcesByOrganizationId(auth.organizationId)
-
-  if (sources.length === 0) {
-    throw new AppError(
-      404,
-      'INGESTED_CONTENT_NOT_FOUND',
-      'No ingested content found. Run ingestion first.',
-    )
-  }
-
-  return {
-    organizationId: auth.organizationId,
-    sources_ingested: sources.length,
-    total_characters: sources.reduce((total, source) => total + source.content.length, 0),
-    sources: sources.map((source) => ({
-      id: source.id,
-      source_type: source.source_type,
-      source_ref: source.source_ref,
-      char_count: source.content.length,
-      content_preview: source.content.slice(0, INGESTION_PREVIEW_LENGTH),
-      created_at: source.created_at,
-    })),
-    errors: [],
-  }
-}
-
-export async function startIndexing(auth: AuthContext): Promise<KnowledgeJobCreatedResponse> {
-  const ingestedCount = await countIngestedSourcesByOrganizationId(auth.organizationId)
-  if (ingestedCount === 0) {
-    throw new AppError(
-      422,
-      'INDEXING_NO_INGESTED_CONTENT',
-      'No ingested content found. Run ingestion before indexing.',
-    )
-  }
-
-  return createIndexJob(auth.organizationId)
 }
 
 export async function getKnowledgeBase(auth: AuthContext): Promise<KnowledgeBaseResponse> {
@@ -156,12 +83,4 @@ export async function askQuestion(auth: AuthContext, input: AskBody): Promise<As
     is_fallback: result.is_fallback,
     sources: toAskSourceReferences(result.sources, ASK_SOURCE_PREVIEW_LENGTH),
   }
-}
-
-export async function getJobStatus(auth: AuthContext, jobId: string): Promise<KnowledgeJobResponse> {
-  return getKnowledgeJob(auth.organizationId, jobId)
-}
-
-export async function retryJob(auth: AuthContext, jobId: string): Promise<KnowledgeJobCreatedResponse> {
-  return retryKnowledgeJob(auth.organizationId, jobId)
 }

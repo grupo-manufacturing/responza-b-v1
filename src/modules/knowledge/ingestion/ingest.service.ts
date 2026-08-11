@@ -23,6 +23,17 @@ export async function ingestBusinessData(organizationId: string): Promise<Ingest
     errors: [],
   }
 
+  if (profile.brand_name !== null && profile.brand_name.trim().length > 0) {
+    const content = cleanText(profile.brand_name)
+    if (content.length > 0) {
+      result.sources.push({
+        source_type: 'brand_name',
+        source_ref: 'brand_name',
+        content,
+      })
+    }
+  }
+
   if (profile.business_description !== null && profile.business_description.trim().length > 0) {
     const content = cleanText(profile.business_description)
     if (content.length > 0) {

@@ -1,6 +1,7 @@
 import type { AuthContext } from '../../shared/auth/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { applyReferralCodeIfPresent } from '../affiliates/affiliates.service.js'
+import { enqueueKnowledgeBuildForOrganization } from '../knowledge/jobs/knowledge-job.service.js'
 import type { CompleteBusinessBody, UpdateBusinessBody } from './business.schemas.js'
 import * as businessRepository from './business.repository.js'
 import type { BusinessProfileRecord } from './business.repository.js'
@@ -23,7 +24,6 @@ function toBusinessResponse(profile: BusinessProfileRecord) {
     organizationId: profile.organization_id,
     brandName: profile.brand_name,
     websiteUrl: profile.website_url,
-    facebookPageUrl: profile.facebook_page_url,
     instagramPageUrl: profile.instagram_page_url,
     businessDescription: profile.business_description,
     catalogueFiles: profile.catalogue_files.map(toCatalogueFileResponse),
@@ -46,7 +46,6 @@ function bodyToProfilePatch(
   return {
     brand_name: input.brandName,
     website_url: input.websiteUrl,
-    facebook_page_url: input.facebookPageUrl,
     instagram_page_url: input.instagramPageUrl,
     business_description: input.businessDescription,
   }
@@ -81,6 +80,8 @@ export async function completeBusiness(auth: AuthContext, input: CompleteBusines
   )
 
   await applyReferralCodeIfPresent(auth.organizationId, input.referralCode)
+
+  void enqueueKnowledgeBuildForOrganization(auth.organizationId)
 
   return toBusinessResponse(completed)
 }
