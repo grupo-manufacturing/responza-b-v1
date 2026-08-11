@@ -48,6 +48,10 @@ import {
 } from '../media/media.service.js'
 import type { InboundMediaContentType } from '../media/media.constants.js'
 import { messageMediaExists } from '../../shared/storage/index.js'
+import {
+  enqueueAgentDraftReplyJob,
+  isAgentDraftPlatform,
+} from './agent-draft.service.js'
 
 export type ReceiveInboundMessageInput = {
   organizationId: string
@@ -108,6 +112,35 @@ function isInboundMediaContentType(
   contentType: MessageContentType,
 ): contentType is InboundMediaContentType {
   return contentType !== 'text'
+}
+
+function scheduleAgentDraftReplyIfEligible(input: {
+  organizationId: string
+  platform: IntegrationPlatform
+  messageId: string
+  contentType: MessageContentType
+  content: string
+}): void {
+  if (!isAgentDraftPlatform(input.platform)) {
+    return
+  }
+
+  if (input.contentType !== 'text') {
+    return
+  }
+
+  const question = input.content.trim()
+  if (question.length === 0) {
+    return
+  }
+
+  void enqueueAgentDraftReplyJob({
+    organizationId: input.organizationId,
+    messageId: input.messageId,
+    question,
+  }).catch((error: unknown) => {
+    logger.error(error instanceof Error ? error : new Error(String(error)))
+  })
 }
 
 async function ensureConversationContext(input: EnsureConversationInput): Promise<{
@@ -282,6 +315,7 @@ async function toMessageResponse(message: MessageRecord) {
     mediaUrl,
     mimeType: message.mime_type,
     status: messageStatusToApi(message.status),
+    suggestedReply: message.suggested_reply,
     createdAt: message.created_at,
   }
 }
@@ -635,6 +669,14 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       filename: pendingMediaIngestion.filename ?? null,
     })
   }
+
+  scheduleAgentDraftReplyIfEligible({
+    organizationId: input.organizationId,
+    platform: input.platform,
+    messageId: message.id,
+    contentType,
+    content,
+  })
 
   return {
     conversation: toConversationResponse(conversation),

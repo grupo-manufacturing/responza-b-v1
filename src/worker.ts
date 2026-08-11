@@ -2,6 +2,7 @@ import { Worker } from 'bullmq'
 
 import { loadEnv } from './shared/config/index.js'
 import { processAiQueueJob } from './modules/ai/ai.jobs.service.js'
+import { runAgentDraftReply } from './modules/inbox/agent-draft.service.js'
 import { processKnowledgeQueueJob } from './modules/knowledge/jobs/knowledge-job.worker.js'
 import { processInboundMediaIngestionJob } from './modules/media/media.ingestion.worker.js'
 import { processInstagramWebhookJob, processWhatsAppWebhookJob } from './modules/messaging/webhook.worker.js'
@@ -11,6 +12,7 @@ import {
   AI_QUEUE_NAME,
   closeAiQueue,
   type AiQueueJobData,
+  type AgentDraftReplyPayload,
 } from './shared/queue/ai.queue.js'
 import {
   KNOWLEDGE_JOB_NAMES,
@@ -101,7 +103,14 @@ const aiWorker = new Worker(
       env.AI_JOB_TIMEOUT_MS,
       async () => {
         if (job.name === AI_JOB_NAMES.run) {
-          await processAiQueueJob(job.data as AiQueueJobData, {
+          const data = job.data as AiQueueJobData
+          if (data.type === 'agent-draft-reply') {
+            await runAgentDraftReply(data.payload as AgentDraftReplyPayload)
+            logger.info(`Agent draft reply job processed: ${job.id ?? 'unknown'}`)
+            return
+          }
+
+          await processAiQueueJob(data, {
             markFailed: isQueueJobLastAttempt(job),
           })
           logger.info(`AI job processed: ${job.id ?? 'unknown'}`)

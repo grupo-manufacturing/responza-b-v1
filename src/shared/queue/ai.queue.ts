@@ -15,12 +15,19 @@ export const AI_JOB_NAMES = {
   run: 'run',
 } as const
 
-export type AiJobType = 'translate' | 'suggest-reply' | 'conversation-analytics'
+export type AgentDraftReplyPayload = {
+  organizationId: string
+  messageId: string
+  question: string
+}
+
+export type AiJobType = 'translate' | 'suggest-reply' | 'conversation-analytics' | 'agent-draft-reply'
 
 export type AiJobPayloadByType = {
   translate: TranslateBody
   'suggest-reply': SuggestReplyBody
   'conversation-analytics': ConversationAnalyticsBody
+  'agent-draft-reply': AgentDraftReplyPayload
 }
 
 export type AiQueueJobData<T extends AiJobType = AiJobType> = {
