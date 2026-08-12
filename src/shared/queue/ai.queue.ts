@@ -2,7 +2,6 @@ import { Queue } from 'bullmq'
 
 import type {
   ConversationAnalyticsBody,
-  SuggestReplyBody,
   TranslateBody,
 } from '../../modules/ai/ai.schemas.js'
 import { getRedisConnectionOptions } from '../redis/client.js'
@@ -21,11 +20,10 @@ export type AgentDraftReplyPayload = {
   question: string
 }
 
-export type AiJobType = 'translate' | 'suggest-reply' | 'conversation-analytics' | 'agent-draft-reply'
+export type AiJobType = 'translate' | 'conversation-analytics' | 'agent-draft-reply'
 
 export type AiJobPayloadByType = {
   translate: TranslateBody
-  'suggest-reply': SuggestReplyBody
   'conversation-analytics': ConversationAnalyticsBody
   'agent-draft-reply': AgentDraftReplyPayload
 }

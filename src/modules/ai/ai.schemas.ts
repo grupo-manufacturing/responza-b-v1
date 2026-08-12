@@ -5,9 +5,6 @@ import {
   CUSTOMER_HISTORY_MAX_LENGTH,
   SUGGESTED_ACTION_MAX_LENGTH,
   SUGGESTED_ACTIONS_COUNT,
-  SUGGEST_REPLY_MAX_COUNT,
-  SUGGEST_REPLY_MAX_LENGTH,
-  SUGGEST_REPLY_MIN_COUNT,
   TRANSLATION_LANGUAGE_VALUES,
 } from './ai.constants.js'
 
@@ -17,23 +14,12 @@ export const translateBodySchema = z.object({
   messageId: z.string().uuid(),
 })
 
-export const suggestReplyBodySchema = z.object({
-  conversationId: z.string().uuid(),
-})
-
 export const conversationAnalyticsBodySchema = z.object({
   conversationId: z.string().uuid(),
 })
 
 export const aiJobParamsSchema = z.object({
   jobId: z.string().uuid(),
-})
-
-export const suggestReplyResponseSchema = z.object({
-  suggestions: z
-    .array(z.string().trim().min(1).max(SUGGEST_REPLY_MAX_LENGTH))
-    .min(SUGGEST_REPLY_MIN_COUNT)
-    .max(SUGGEST_REPLY_MAX_COUNT),
 })
 
 export const conversationAnalyticsResponseSchema = z.object({
@@ -46,24 +32,7 @@ export const conversationAnalyticsResponseSchema = z.object({
 })
 
 export type TranslateBody = z.infer<typeof translateBodySchema>
-export type SuggestReplyBody = z.infer<typeof suggestReplyBodySchema>
 export type ConversationAnalyticsBody = z.infer<typeof conversationAnalyticsBodySchema>
-
-export function normalizeSuggestReplyResponse(raw: string): { suggestions: string[] } {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    throw new Error('Invalid JSON response')
-  }
-
-  const result = suggestReplyResponseSchema.safeParse(parsed)
-  if (!result.success) {
-    throw new Error('Invalid suggestions shape')
-  }
-
-  return result.data
-}
 
 export function normalizeConversationAnalyticsResponse(raw: string): {
   leadScore: number

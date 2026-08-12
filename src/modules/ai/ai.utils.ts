@@ -37,20 +37,6 @@ export function formatMessageContentForAi(content: string): string {
   return trimmed
 }
 
-export function formatMessageLine(message: MessageRecord): string {
-  const speaker = message.direction === 'inbound' ? 'Customer' : 'You'
-  return `${speaker}: ${formatMessageContentForAi(message.content)}`
-}
-
-export function buildSuggestReplyTranscript(messages: MessageRecord[]): string {
-  return messages.map(formatMessageLine).join('\n')
-}
-
-export function isLatestMessageOutbound(messages: MessageRecord[]): boolean {
-  const latest = messages[messages.length - 1]
-  return latest?.direction === 'outbound'
-}
-
 function formatAnalyticsMessageLine(message: MessageRecord): string {
   const speaker = message.direction === 'inbound' ? 'Customer' : 'You'
   const timestamp = message.created_at.slice(0, 16).replace('T', ' ')

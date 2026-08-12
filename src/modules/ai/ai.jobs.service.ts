@@ -6,10 +6,8 @@ import { loadEnv } from '../../shared/config/index.js'
 import { enqueueAiJob, type AiJobType, type AiQueueJobData } from '../../shared/queue/ai.queue.js'
 import {
   analyzeConversation,
-  suggestReply,
   translateMessage,
   validateAnalyzeConversation,
-  validateSuggestReply,
   validateTranslateMessage,
 } from './ai.service.js'
 import {
@@ -24,7 +22,6 @@ import {
 } from './ai.job.store.js'
 import type {
   ConversationAnalyticsBody,
-  SuggestReplyBody,
   TranslateBody,
 } from './ai.schemas.js'
 
@@ -90,14 +87,6 @@ export async function enqueueTranslateJob(
   return enqueueJob(auth, 'translate', input)
 }
 
-export async function enqueueSuggestReplyJob(
-  auth: AuthContext,
-  input: SuggestReplyBody,
-): Promise<AiJobEnqueueResponse> {
-  await validateSuggestReply(auth, input)
-  return enqueueJob(auth, 'suggest-reply', input)
-}
-
 export async function enqueueConversationAnalyticsJob(
   auth: AuthContext,
   input: ConversationAnalyticsBody,
@@ -124,8 +113,6 @@ export async function executeAiQueueJob(data: AiQueueJobData): Promise<unknown> 
   switch (data.type) {
     case 'translate':
       return translateMessage(auth, data.payload as TranslateBody)
-    case 'suggest-reply':
-      return suggestReply(auth, data.payload as SuggestReplyBody)
     case 'conversation-analytics':
       return analyzeConversation(auth, data.payload as ConversationAnalyticsBody)
     case 'agent-draft-reply':

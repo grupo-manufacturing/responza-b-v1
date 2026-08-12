@@ -5,31 +5,19 @@ import { findConversationSendContext } from '../inbox/repositories/conversation.
 import {
   findMessageByIdForOrganization,
   listMessagesByConversationId,
-  listRecentMessagesForConversation,
 } from '../inbox/repositories/message.repository.js'
-import { ANALYTICS_MIN_MESSAGES, SUGGEST_REPLY_MESSAGE_LIMIT } from './ai.constants.js'
+import { ANALYTICS_MIN_MESSAGES } from './ai.constants.js'
 import {
   normalizeConversationAnalyticsResponse,
-  normalizeSuggestReplyResponse,
   translationLanguageSchema,
   type ConversationAnalyticsBody,
-  type SuggestReplyBody,
   type TranslateBody,
 } from './ai.schemas.js'
-import {
-  buildAnalyticsTranscript,
-  buildSuggestReplyTranscript,
-  isLatestMessageOutbound,
-  isTranslatableMessageContent,
-} from './ai.utils.js'
+import { buildAnalyticsTranscript, isTranslatableMessageContent } from './ai.utils.js'
 import {
   buildConversationAnalyticsSystemPrompt,
   buildConversationAnalyticsUserPrompt,
 } from './prompts/conversationAnalytics.prompt.js'
-import {
-  buildSuggestReplySystemPrompt,
-  buildSuggestReplyUserPrompt,
-} from './prompts/suggestReply.prompt.js'
 import { buildTranslateSystemPrompt } from './prompts/translate.prompt.js'
 import { completeChat, completeChatJson } from './providers/openai.client.js'
 import * as authRepository from '../auth/auth.repository.js'
@@ -110,62 +98,6 @@ export async function translateMessage(auth: AuthContext, input: TranslateBody) 
     targetLanguage,
     original: message.content,
   }
-}
-
-export async function validateSuggestReply(
-  auth: AuthContext,
-  input: SuggestReplyBody,
-): Promise<void> {
-  const conversation = await findConversationSendContext(auth.organizationId, input.conversationId)
-  if (conversation === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
-  }
-
-  const messages = await listRecentMessagesForConversation({
-    organization_id: auth.organizationId,
-    conversation_id: input.conversationId,
-    limit: SUGGEST_REPLY_MESSAGE_LIMIT,
-  })
-
-  if (messages.length === 0) {
-    throw new AppError(400, 'BAD_REQUEST', 'No messages in this conversation yet')
-  }
-}
-
-export async function suggestReply(auth: AuthContext, input: SuggestReplyBody) {
-  const conversation = await findConversationSendContext(auth.organizationId, input.conversationId)
-  if (conversation === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
-  }
-
-  const [profile, messages] = await Promise.all([
-    findProfileByOrganizationId(auth.organizationId),
-    listRecentMessagesForConversation({
-      organization_id: auth.organizationId,
-      conversation_id: input.conversationId,
-      limit: SUGGEST_REPLY_MESSAGE_LIMIT,
-    }),
-  ])
-
-  if (messages.length === 0) {
-    throw new AppError(400, 'BAD_REQUEST', 'No messages in this conversation yet')
-  }
-
-  const transcript = buildSuggestReplyTranscript(messages)
-  const latestMessageIsOutbound = isLatestMessageOutbound(messages)
-  const system = buildSuggestReplySystemPrompt(profile, latestMessageIsOutbound)
-  const user = buildSuggestReplyUserPrompt(transcript)
-
-  const raw = await completeChatJson({ system, user })
-
-  let suggestions: string[]
-  try {
-    suggestions = normalizeSuggestReplyResponse(raw).suggestions
-  } catch {
-    throw new AppError(502, 'INTERNAL_ERROR', 'Could not generate reply suggestions. Please try again.')
-  }
-
-  return { suggestions }
 }
 
 export async function validateAnalyzeConversation(

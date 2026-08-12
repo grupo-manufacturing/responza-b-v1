@@ -94,20 +94,6 @@ export async function listMessagesForConversation(
   }
 }
 
-export async function listRecentMessagesForConversation(input: {
-  organization_id: string
-  conversation_id: string
-  limit: number
-}): Promise<MessageRecord[]> {
-  const result = await listMessagesForConversation({
-    organization_id: input.organization_id,
-    conversation_id: input.conversation_id,
-    limit: input.limit,
-  })
-
-  return result.messages
-}
-
 export type InsertOutboundMessageInput = {
   organization_id: string
   conversation_id: string
