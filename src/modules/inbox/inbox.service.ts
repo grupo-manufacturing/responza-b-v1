@@ -117,6 +117,7 @@ function isInboundMediaContentType(
 function scheduleAgentDraftReplyIfEligible(input: {
   organizationId: string
   platform: IntegrationPlatform
+  conversationId: string
   messageId: string
   contentType: MessageContentType
   content: string
@@ -136,6 +137,7 @@ function scheduleAgentDraftReplyIfEligible(input: {
 
   void enqueueAgentDraftReplyJob({
     organizationId: input.organizationId,
+    conversationId: input.conversationId,
     messageId: input.messageId,
     question,
   }).catch((error: unknown) => {
@@ -673,6 +675,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   scheduleAgentDraftReplyIfEligible({
     organizationId: input.organizationId,
     platform: input.platform,
+    conversationId: conversation.id,
     messageId: message.id,
     contentType,
     content,

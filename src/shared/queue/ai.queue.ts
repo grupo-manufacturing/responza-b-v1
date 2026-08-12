@@ -16,6 +16,7 @@ export const AI_JOB_NAMES = {
 
 export type AgentDraftReplyPayload = {
   organizationId: string
+  conversationId: string
   messageId: string
   question: string
 }

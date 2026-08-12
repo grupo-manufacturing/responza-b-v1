@@ -10,14 +10,25 @@ Rules:
 - Keep answers concise, factual, and helpful.
 `
 
-export function buildUserPrompt(question: string, context: string): string {
-  return `Context:
-${context}
+export function buildUserPrompt(
+  question: string,
+  context: string,
+  conversationContext?: string,
+): string {
+  const sections: string[] = []
 
-Question:
-${question}
+  if (conversationContext !== undefined && conversationContext.trim().length > 0) {
+    sections.push(`Conversation (most recent last):\n${conversationContext.trim()}`)
+    sections.push(
+      'Use the conversation only to understand the latest question (references, follow-ups, prior details).',
+    )
+  }
 
-Answer using only the context above.`
+  sections.push(`Context:\n${context}`)
+  sections.push(`Question:\n${question}`)
+  sections.push('Answer using only the context above.')
+
+  return sections.join('\n\n')
 }
 
 export type ContextChunk = {

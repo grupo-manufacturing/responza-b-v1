@@ -7,7 +7,11 @@ export type AgentAnswer = {
   is_fallback: boolean
 }
 
-export async function askAgent(question: string, chunks: RetrievedChunk[]): Promise<AgentAnswer> {
+export async function askAgent(
+  question: string,
+  chunks: RetrievedChunk[],
+  options?: { conversationContext?: string },
+): Promise<AgentAnswer> {
   if (chunks.length === 0) {
     return {
       answer: FALLBACK_MESSAGE,
@@ -18,7 +22,7 @@ export async function askAgent(question: string, chunks: RetrievedChunk[]): Prom
   const context = formatContext(chunks)
   const answer = await completeKnowledgeChat({
     system: SYSTEM_PROMPT,
-    user: buildUserPrompt(question, context),
+    user: buildUserPrompt(question, context, options?.conversationContext),
   })
 
   const normalizedAnswer = answer.length > 0 ? answer : FALLBACK_MESSAGE

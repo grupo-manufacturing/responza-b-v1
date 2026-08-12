@@ -19,9 +19,12 @@ export type AgentResponse = {
 export async function askBusinessAgent(
   organizationId: string,
   question: string,
+  options?: { conversationContext?: string },
 ): Promise<AgentResponse> {
   const chunks = await retrieveRelevantChunks(organizationId, question)
-  const result = await askAgent(question, chunks)
+  const result = await askAgent(question, chunks, {
+    conversationContext: options?.conversationContext,
+  })
 
   return {
     answer: result.answer,
