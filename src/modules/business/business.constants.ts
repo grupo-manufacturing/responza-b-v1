@@ -11,5 +11,3 @@ export const CATALOGUE_ALLOWED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'text/plain',
 ] as const
-
-export type CatalogueMimeType = (typeof CATALOGUE_ALLOWED_MIME_TYPES)[number]

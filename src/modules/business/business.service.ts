@@ -34,12 +34,6 @@ function toBusinessResponse(profile: BusinessProfileRecord) {
   }
 }
 
-function assertOrganizationAccess(auth: AuthContext, organizationId: string): void {
-  if (auth.organizationId !== organizationId) {
-    throw new AppError(403, 'FORBIDDEN', 'Cannot access business profile for another organization')
-  }
-}
-
 function bodyToProfilePatch(
   input: CompleteBusinessBody | UpdateBusinessBody,
 ): businessRepository.BusinessProfileUpdatePatch {
@@ -57,7 +51,6 @@ export async function getBusiness(auth: AuthContext) {
     throw new AppError(404, 'NOT_FOUND', 'Business profile not found')
   }
 
-  assertOrganizationAccess(auth, profile.organization_id)
   return toBusinessResponse(profile)
 }
 
@@ -71,7 +64,6 @@ export async function completeBusiness(auth: AuthContext, input: CompleteBusines
     return toBusinessResponse(profile)
   }
 
-  // Validate referral before completing so an invalid code never saves the profile.
   await applyReferralCodeIfPresent(auth.organizationId, input.referralCode, { dryRun: true })
 
   const completed = await businessRepository.completeProfile(
@@ -116,8 +108,6 @@ export async function uploadCatalogueFile(
     throw new AppError(400, 'VALIDATION_ERROR', 'Please choose a file to upload.')
   }
 
-  // Check the file limit before uploading to storage so a rejected upload
-  // never leaves an orphaned object behind.
   const existingProfile = await businessRepository.findProfileByOrganizationId(auth.organizationId)
   if (existingProfile === null) {
     throw new AppError(404, 'NOT_FOUND', 'Business profile not found')
@@ -167,7 +157,7 @@ export async function deleteCatalogueFile(auth: AuthContext, fileId: string) {
     try {
       await businessRepository.deleteCatalogueStorageObject(storagePath)
     } catch {
-      // Profile metadata is already updated; orphaned storage can be cleaned later.
+      void 0
     }
   }
 

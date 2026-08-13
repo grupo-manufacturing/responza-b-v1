@@ -129,10 +129,6 @@ export async function getAffiliateReferrals(id: string) {
   }
 }
 
-/**
- * Apply optional referral code once. Invalid codes throw; already-attributed orgs are a no-op.
- * Pass dryRun to validate without writing.
- */
 export async function applyReferralCodeIfPresent(
   organizationId: string,
   referralCode: string | null | undefined,

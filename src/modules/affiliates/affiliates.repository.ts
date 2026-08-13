@@ -217,6 +217,5 @@ export async function attachReferralToOrganization(
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to attach referral code')
   }
 
-  // Already attributed (or race) — leave as-is without error.
   void data
 }

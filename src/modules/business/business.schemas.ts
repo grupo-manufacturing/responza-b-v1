@@ -1,37 +1,44 @@
 import { z } from 'zod'
 
-const optionalHttpUrlField = z.preprocess(
-  (value) => {
-    if (value === undefined || value === null || value === '') {
-      return null
-    }
+const WEBSITE_URL_MESSAGE =
+  'Enter a full website link starting with https:// (e.g. https://yourshop.com)'
+const INSTAGRAM_URL_MESSAGE =
+  'Enter a full Instagram link starting with https:// (e.g. https://instagram.com/yourpage)'
 
-    return value
-  },
-  z.union([
-    z
-      .string()
-      .trim()
-      .url({ message: 'Please enter a full link starting with https:// (e.g., https://yourshop.com)' })
-      .refine((value) => value.startsWith('http://') || value.startsWith('https://'), {
-        message: 'Please enter a full link starting with https:// (e.g., https://yourshop.com)',
-      }),
-    z.null(),
-  ]),
-)
+function optionalHttpUrlField(message: string) {
+  return z.preprocess(
+    (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null
+      }
+
+      return value
+    },
+    z.union([
+      z
+        .string()
+        .trim()
+        .url({ message })
+        .refine((value) => value.startsWith('http://') || value.startsWith('https://'), {
+          message,
+        }),
+      z.null(),
+    ]),
+  )
+}
 
 const businessProfileBodySchema = z.object({
   brandName: z
     .string()
     .trim()
-    .min(1, 'Brand name is required')
+    .min(1, 'Enter your brand name')
     .max(200, 'Brand name must be 200 characters or less'),
-  websiteUrl: optionalHttpUrlField,
-  instagramPageUrl: optionalHttpUrlField,
+  websiteUrl: optionalHttpUrlField(WEBSITE_URL_MESSAGE),
+  instagramPageUrl: optionalHttpUrlField(INSTAGRAM_URL_MESSAGE),
   businessDescription: z
     .string()
     .trim()
-    .min(20, 'Business description must be at least 20 characters')
+    .min(20, 'Tell us a bit more — at least 20 characters')
     .max(5000, 'Business description must be 5000 characters or less'),
 })
 
@@ -49,7 +56,7 @@ const optionalReferralCodeField = z.preprocess(
       .trim()
       .min(2, 'Referral code must be at least 2 characters')
       .max(32, 'Referral code must be 32 characters or less')
-      .regex(/^[A-Za-z0-9_-]+$/, 'Referral code may only contain letters, numbers, hyphens, and underscores'),
+      .regex(/^[A-Za-z0-9_-]+$/, 'Use only letters, numbers, hyphens, and underscores'),
     z.null(),
   ]),
 )
