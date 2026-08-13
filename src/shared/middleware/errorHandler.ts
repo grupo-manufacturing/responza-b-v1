@@ -13,9 +13,23 @@ type ErrorResponseBody = {
 }
 
 const MULTER_ERROR_MESSAGES: Partial<Record<string, string>> = {
-  LIMIT_FILE_SIZE: 'This file is too large to upload. Please choose a smaller file.',
+  LIMIT_FILE_SIZE: 'This file is larger than 10 MB. Choose a smaller file.',
   LIMIT_FILE_COUNT: 'Only one file can be uploaded at a time.',
   LIMIT_UNEXPECTED_FILE: 'Only one file can be uploaded at a time.',
+}
+
+function isMulterError(error: unknown): error is multer.MulterError {
+  if (error instanceof multer.MulterError) {
+    return true
+  }
+
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string' &&
+    (error as { name?: string }).name === 'MulterError'
+  )
 }
 
 export function notFoundHandler(_req: Request, res: Response): void {
@@ -30,7 +44,7 @@ export function notFoundHandler(_req: Request, res: Response): void {
 }
 
 export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction): void {
-  if (error instanceof multer.MulterError) {
+  if (isMulterError(error)) {
     const body: ErrorResponseBody = {
       error: {
         code: 'VALIDATION_ERROR',

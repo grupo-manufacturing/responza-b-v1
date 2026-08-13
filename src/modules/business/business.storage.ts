@@ -43,11 +43,7 @@ export async function storeBusinessCatalogueFile(input: {
   }
 
   if (input.buffer.byteLength > CATALOGUE_MAX_FILE_SIZE_BYTES) {
-    throw new AppError(
-      400,
-      'VALIDATION_ERROR',
-      'This file is larger than the 10 MB limit. Try compressing it or splitting it into smaller files.',
-    )
+    throw new AppError(400, 'VALIDATION_ERROR', 'This file is larger than 10 MB. Choose a smaller file.')
   }
 
   const sniffed = sniffMimeTypeFromBuffer(input.buffer)
@@ -63,7 +59,7 @@ export async function storeBusinessCatalogueFile(input: {
     throw new AppError(
       400,
       'VALIDATION_ERROR',
-      'This file type is not supported. Please upload a PDF, Word, Excel, PowerPoint, or text file.',
+      'Unsupported file type. Upload a PDF, Word, Excel, PowerPoint, or text file.',
     )
   }
 
@@ -82,10 +78,15 @@ export async function storeBusinessCatalogueFile(input: {
     })
   } catch (error) {
     logger.error(error)
+    const detail = error instanceof AppError ? error.message : String(error)
+    if (/size|large|payload|entity too large|maximum|too big/i.test(detail)) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'This file is larger than 10 MB. Choose a smaller file.')
+    }
+
     throw new AppError(
       500,
       'INTERNAL_ERROR',
-      'We could not save your file right now. Please try again in a moment.',
+      'We could not upload this file. Please try again in a moment.',
     )
   }
 
