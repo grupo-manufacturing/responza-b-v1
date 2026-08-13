@@ -5,6 +5,3 @@ ALTER TABLE organizations
 UPDATE organizations
 SET email_verified = true
 WHERE email_verified = false;
-
-
-re_y7F9ecwq_6wcDJcdgmb38C4H1sqUTqZL7

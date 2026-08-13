@@ -41,18 +41,14 @@ export const changePasswordBodySchema = z.object({
   newPassword: z.string().min(8).max(128),
 })
 
-const OTP_MIN_LENGTH = 6
-const OTP_MAX_LENGTH = 10
+const OTP_LENGTH = 8
 
 export const verifyOtpBodySchema = z.object({
   email: emailFieldSchema,
   token: z
     .string()
     .trim()
-    .regex(
-      new RegExp(`^\\d{${OTP_MIN_LENGTH},${OTP_MAX_LENGTH}}$`),
-      `Verification code must be ${OTP_MIN_LENGTH}–${OTP_MAX_LENGTH} digits`,
-    ),
+    .regex(new RegExp(`^\\d{${OTP_LENGTH}}$`), `Verification code must be ${OTP_LENGTH} digits`),
 })
 
 export const resendOtpBodySchema = z.object({
