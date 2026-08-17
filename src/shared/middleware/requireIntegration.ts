@@ -2,7 +2,6 @@ import type { NextFunction, Request, Response } from 'express'
 
 import * as integrationsRepository from '../../modules/integrations/integrations.repository.js'
 import {
-  integrationPlatformToApi,
   SUPPORTED_PLATFORMS,
   type IntegrationPlatform,
 } from '../../modules/integrations/integrations.constants.js'
@@ -38,11 +37,10 @@ export function requireIntegrationMiddleware(options: RequireIntegrationOptions 
 
       next(
         new AppError(402, 'INTEGRATIONS_REQUIRED', 'Connect a platform integration to continue.', {
-          requiredPlatform:
-            options.platform !== undefined ? integrationPlatformToApi(options.platform) : null,
-          availablePlatforms: SUPPORTED_PLATFORMS.map(integrationPlatformToApi),
-          connectedPlatforms: connectedPlatforms.map(integrationPlatformToApi),
-          disconnectedPlatforms: disconnectedPlatforms.map(integrationPlatformToApi),
+          requiredPlatform: options.platform ?? null,
+          availablePlatforms: [...SUPPORTED_PLATFORMS],
+          connectedPlatforms,
+          disconnectedPlatforms,
         }),
       )
     } catch (error) {

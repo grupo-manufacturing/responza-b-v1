@@ -84,18 +84,8 @@ export async function getGmailCredentialsForOrganization(
 
   return {
     ...credentials,
-    refreshToken:
-      typeof row.refresh_token === 'string'
-        ? row.refresh_token
-        : row.refresh_token === null
-          ? null
-          : null,
-    tokenExpiresAt:
-      typeof row.token_expires_at === 'string'
-        ? row.token_expires_at
-        : row.token_expires_at === null
-          ? null
-          : null,
+    refreshToken: row.refresh_token,
+    tokenExpiresAt: row.token_expires_at,
     metadata: credentials.metadata as GmailIntegrationCredentials['metadata'],
   }
 }

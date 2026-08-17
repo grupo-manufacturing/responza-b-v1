@@ -1,5 +1,4 @@
 import type { AuthContext } from '../../shared/auth/index.js'
-import { integrationPlatformToApi } from '../integrations/integrations.constants.js'
 import * as inboxRepository from '../inbox/inbox.repository.js'
 import type { ConversationListRecord } from '../inbox/inbox.repository.js'
 import {
@@ -43,7 +42,7 @@ function toConversationItem(conversation: ConversationListRecord): DashboardConv
     id: conversation.id,
     organizationId: conversation.organization_id,
     channelId: conversation.channel_id,
-    platform: integrationPlatformToApi(conversation.platform),
+    platform: conversation.platform,
     channelDisplayName: conversation.channel_display_name,
     externalId: conversation.external_id,
     displayName: conversation.contact_display_name ?? conversation.external_id,

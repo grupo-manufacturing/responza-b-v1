@@ -10,7 +10,6 @@ import { logger } from '../../shared/logger.js'
 import { getInstagramCredentialsForOrganization } from '../integrations/credentials.service.js'
 import {
   integrationPlatformFromApi,
-  integrationPlatformToApi,
   type IntegrationPlatform,
 } from '../integrations/integrations.constants.js'
 import {
@@ -247,7 +246,7 @@ function toConversationListItem(conversation: ConversationListRecord) {
     id: conversation.id,
     organizationId: conversation.organization_id,
     channelId: conversation.channel_id,
-    platform: integrationPlatformToApi(conversation.platform),
+    platform: conversation.platform,
     channelDisplayName: conversation.channel_display_name,
     externalId: conversation.external_id,
     displayName: conversation.contact_display_name ?? conversation.external_id,

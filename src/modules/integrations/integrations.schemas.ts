@@ -12,19 +12,10 @@ export const whatsAppSessionInfoSchema = z.object({
   business_id: z.string().trim().min(1).optional(),
 })
 
-export const instagramSessionInfoSchema = z.object({
-  business_account_id: z.string().trim().min(1),
-  user_id: z.string().trim().min(1),
-  username: z.string().trim().min(1).optional(),
-})
-
 export const connectIntegrationBodySchema = z.object({
   code: z.string().trim().min(1).optional(),
   redirect_uri: z.string().trim().min(1).optional(),
-  session_info: z.union([
-    whatsAppSessionInfoSchema,
-    instagramSessionInfoSchema
-  ]).optional(),
+  session_info: whatsAppSessionInfoSchema.optional(),
 })
 
 export type ConnectIntegrationBody = z.infer<typeof connectIntegrationBodySchema>

@@ -13,8 +13,8 @@ import {
 
 export type IntegrationCredentialsRow = IntegrationRecord & {
   access_token: string
-  refresh_token?: string | null
-  token_expires_at?: string | null
+  refresh_token: string | null
+  token_expires_at: string | null
   metadata: WhatsAppIntegrationMetadata | InstagramIntegrationMetadata | GmailIntegrationMetadata
 }
 
@@ -141,18 +141,8 @@ export function normalizeIntegrationCredentialsRow(
   return {
     ...normalizeIntegrationRecord(row),
     access_token: accessToken,
-    refresh_token:
-      typeof row.refresh_token === 'string'
-        ? row.refresh_token
-        : row.refresh_token === null
-          ? null
-          : undefined,
-    token_expires_at:
-      typeof row.token_expires_at === 'string'
-        ? row.token_expires_at
-        : row.token_expires_at === null
-          ? null
-          : undefined,
+    refresh_token: typeof row.refresh_token === 'string' ? row.refresh_token : null,
+    token_expires_at: typeof row.token_expires_at === 'string' ? row.token_expires_at : null,
     metadata: normalizedMetadata,
   }
 }

@@ -22,8 +22,6 @@ import {
 import {
   SUPPORTED_PLATFORMS,
   integrationPlatformFromApi,
-  integrationPlatformToApi,
-  integrationStatusToApi,
   type IntegrationPlatform,
   type GmailIntegrationMetadata,
   type InstagramIntegrationMetadata,
@@ -42,14 +40,14 @@ import type { IntegrationRecord } from './integrations.repository.js'
 function toIntegrationResponse(record: IntegrationRecord) {
   return {
     id: record.id,
-    platform: integrationPlatformToApi(record.platform),
-    status: integrationStatusToApi(record.status),
+    platform: record.platform,
+    status: record.status,
   }
 }
 
 function toDisconnectedResponse(platform: IntegrationPlatform) {
   return {
-    platform: integrationPlatformToApi(platform),
+    platform,
     status: 'disconnected' as const,
   }
 }
@@ -87,7 +85,13 @@ const CHANNEL_DISPLAY_NAMES: Record<'whatsapp' | 'instagram', string> = {
 }
 
 export async function listIntegrations(auth: AuthContext) {
-  const rows = await integrationsRepository.listIntegrationsByOrganization(auth.organizationId)
+  const [rows, whatsapp, instagram, gmail] = await Promise.all([
+    integrationsRepository.listIntegrationsByOrganization(auth.organizationId),
+    storedWhatsAppSummary(auth.organizationId),
+    storedInstagramSummary(auth.organizationId),
+    storedGmailSummary(auth.organizationId),
+  ])
+
   const byPlatform = new Map(rows.map((row) => [row.platform, row]))
 
   const integrations = SUPPORTED_PLATFORMS.map((platform) => {
@@ -99,7 +103,12 @@ export async function listIntegrations(auth: AuthContext) {
     return toIntegrationResponse(row)
   })
 
-  return { integrations }
+  return {
+    integrations,
+    whatsapp,
+    instagram,
+    gmail,
+  }
 }
 
 export async function connectIntegration(
@@ -250,7 +259,11 @@ async function enrichWhatsAppMetadata(
         ? { profile_picture_url: profile.profile_picture_url }
         : {}),
     })
-  } catch {
+  } catch (error) {
+    logger.warn('[whatsapp] profile enrich failed', {
+      phoneNumberId: metadata.phone_number_id,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return metadata
   }
 }
@@ -341,6 +354,33 @@ async function storeGmailCredentials(
   }
 }
 
+async function storedWhatsAppSummary(organizationId: string) {
+  const credentials = await getWhatsAppCredentialsForOrganization(organizationId)
+  if (credentials === null) {
+    return null
+  }
+
+  return toWhatsAppSummary(credentials.metadata as WhatsAppIntegrationMetadata)
+}
+
+async function storedInstagramSummary(organizationId: string) {
+  const credentials = await getInstagramCredentialsForOrganization(organizationId)
+  if (credentials === null) {
+    return null
+  }
+
+  return toInstagramSummary(credentials.metadata as InstagramIntegrationMetadata)
+}
+
+async function storedGmailSummary(organizationId: string) {
+  const credentials = await getGmailCredentialsForOrganization(organizationId)
+  if (credentials === null) {
+    return null
+  }
+
+  return toGmailSummary(credentials.metadata)
+}
+
 export async function getWhatsAppConnectionSummary(auth: AuthContext) {
   const credentials = await getWhatsAppCredentialsForOrganization(auth.organizationId)
   if (credentials === null) {
@@ -350,26 +390,10 @@ export async function getWhatsAppConnectionSummary(auth: AuthContext) {
     }
   }
 
-  const baseMetadata = credentials.metadata as WhatsAppIntegrationMetadata
-  let metadata = baseMetadata
-
-  try {
-    const profile = await fetchWhatsAppBusinessProfile({
-      phoneNumberId: baseMetadata.phone_number_id,
-      accessToken: credentials.accessToken,
-    })
-    metadata = {
-      ...baseMetadata,
-      ...(profile.verified_name !== null ? { verified_name: profile.verified_name } : {}),
-      ...(profile.display_phone_number !== null
-        ? { display_phone_number: profile.display_phone_number }
-        : {}),
-      ...(profile.profile_picture_url !== null
-        ? { profile_picture_url: profile.profile_picture_url }
-        : {}),
-    }
-  } catch {
-  }
+  const metadata = await enrichWhatsAppMetadata(
+    credentials.metadata as WhatsAppIntegrationMetadata,
+    credentials.accessToken,
+  )
 
   return {
     connected: true,
@@ -392,7 +416,11 @@ export async function getInstagramConnectionSummary(auth: AuthContext) {
   try {
     const userInfo = await fetchInstagramUserInfo(credentials.accessToken)
     profilePictureUrl = userInfo.profile_picture_url ?? profilePictureUrl
-  } catch {
+  } catch (error) {
+    logger.warn('[instagram] status profile refresh failed', {
+      organizationId: auth.organizationId,
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 
   return {
@@ -402,18 +430,10 @@ export async function getInstagramConnectionSummary(auth: AuthContext) {
 }
 
 export async function getGmailConnectionSummary(auth: AuthContext) {
-  const credentials = await getGmailCredentialsForOrganization(auth.organizationId)
-  if (credentials === null) {
-    return {
-      connected: false,
-      gmail: null,
-    }
-  }
-
-  const metadata = credentials.metadata
+  const gmail = await storedGmailSummary(auth.organizationId)
 
   return {
-    connected: true,
-    gmail: toGmailSummary(metadata),
+    connected: gmail !== null,
+    gmail,
   }
 }
