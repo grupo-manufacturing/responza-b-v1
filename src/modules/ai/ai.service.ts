@@ -22,71 +22,48 @@ import { buildTranslateSystemPrompt } from './prompts/translate.prompt.js'
 import { completeChat, completeChatJson } from './providers/openai.client.js'
 import * as authRepository from '../auth/auth.repository.js'
 
+async function resolveTranslateContext(auth: AuthContext, input: TranslateBody) {
+  const organization = await authRepository.findOrganizationById(auth.organizationId)
+  if (organization === null) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Organization account not found')
+  }
+
+  const parsedTargetLanguage = translationLanguageSchema.safeParse(
+    organization.preferred_translation_language,
+  )
+  if (!parsedTargetLanguage.success) {
+    throw new AppError(
+      400,
+      'BAD_REQUEST',
+      'Set your target language in Settings → General before translating messages',
+    )
+  }
+
+  const message = await findMessageByIdForOrganization({
+    organization_id: auth.organizationId,
+    message_id: input.messageId,
+  })
+
+  if (message === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Message not found')
+  }
+
+  if (!isTranslatableMessageContent(message.content)) {
+    throw new AppError(400, 'BAD_REQUEST', 'This message cannot be translated')
+  }
+
+  return { targetLanguage: parsedTargetLanguage.data, message }
+}
+
 export async function validateTranslateMessage(
   auth: AuthContext,
   input: TranslateBody,
 ): Promise<void> {
-  const organization = await authRepository.findOrganizationById(auth.organizationId)
-  if (organization === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Organization account not found')
-  }
-
-  const parsedTargetLanguage = translationLanguageSchema.safeParse(
-    organization.preferred_translation_language,
-  )
-  if (!parsedTargetLanguage.success) {
-    throw new AppError(
-      400,
-      'BAD_REQUEST',
-      'Set your target language in Settings → General before translating messages',
-    )
-  }
-
-  const message = await findMessageByIdForOrganization({
-    organization_id: auth.organizationId,
-    message_id: input.messageId,
-  })
-
-  if (message === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Message not found')
-  }
-
-  if (!isTranslatableMessageContent(message.content)) {
-    throw new AppError(400, 'BAD_REQUEST', 'This message cannot be translated')
-  }
+  await resolveTranslateContext(auth, input)
 }
 
 export async function translateMessage(auth: AuthContext, input: TranslateBody) {
-  const organization = await authRepository.findOrganizationById(auth.organizationId)
-  if (organization === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Organization account not found')
-  }
-
-  const parsedTargetLanguage = translationLanguageSchema.safeParse(
-    organization.preferred_translation_language,
-  )
-  if (!parsedTargetLanguage.success) {
-    throw new AppError(
-      400,
-      'BAD_REQUEST',
-      'Set your target language in Settings → General before translating messages',
-    )
-  }
-
-  const targetLanguage = parsedTargetLanguage.data
-
-  const message = await findMessageByIdForOrganization({
-    organization_id: auth.organizationId,
-    message_id: input.messageId,
-  })
-
-  if (message === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Message not found')
-  }
-
-  if (!isTranslatableMessageContent(message.content)) {
-    throw new AppError(400, 'BAD_REQUEST', 'This message cannot be translated')
-  }
+  const { targetLanguage, message } = await resolveTranslateContext(auth, input)
 
   const translated = await completeChat({
     system: buildTranslateSystemPrompt(targetLanguage),

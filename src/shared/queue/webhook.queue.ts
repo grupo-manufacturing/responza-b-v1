@@ -35,6 +35,18 @@ export function getWebhookQueue(): Queue {
   return webhookQueue
 }
 
+async function enqueueWebhookJob<T extends keyof typeof WEBHOOK_JOB_NAMES>(
+  jobName: (typeof WEBHOOK_JOB_NAMES)[T],
+  input: {
+    rawBody: Buffer
+    signatureHeader: string | undefined
+    body: unknown
+  },
+): Promise<void> {
+  const queue = getWebhookQueue()
+  await queue.add(jobName, toWebhookJobData(input))
+}
+
 function toWebhookJobData(input: {
   rawBody: Buffer
   signatureHeader: string | undefined
@@ -52,8 +64,7 @@ export async function enqueueWhatsAppWebhookJob(input: {
   signatureHeader: string | undefined
   body: unknown
 }) {
-  const queue = getWebhookQueue()
-  return queue.add(WEBHOOK_JOB_NAMES.whatsapp, toWebhookJobData(input))
+  await enqueueWebhookJob(WEBHOOK_JOB_NAMES.whatsapp, input)
 }
 
 export async function enqueueInstagramWebhookJob(input: {
@@ -61,8 +72,7 @@ export async function enqueueInstagramWebhookJob(input: {
   signatureHeader: string | undefined
   body: unknown
 }) {
-  const queue = getWebhookQueue()
-  return queue.add(WEBHOOK_JOB_NAMES.instagram, toWebhookJobData(input))
+  await enqueueWebhookJob(WEBHOOK_JOB_NAMES.instagram, input)
 }
 
 export async function closeWebhookQueue(): Promise<void> {

@@ -20,32 +20,21 @@ export function createIntegrationsRouter(): Router {
       .catch(next)
   })
 
-  router.get('/whatsapp/status', (req, res, next) => {
-    void integrationsService
-      .getWhatsAppConnectionSummary(req.auth!)
-      .then((result) => {
+  const mountStatusRoute = (
+    path: string,
+    handler: (auth: any) => Promise<unknown>,
+  ): void => {
+    router.get(path, (req, res, next) => {
+      void handler(req.auth!).then((result) => {
         res.status(200).json(result)
-      })
-      .catch(next)
-  })
+      }).catch(next)
+    })
+  }
 
-  router.get('/instagram/status', (req, res, next) => {
-    void integrationsService
-      .getInstagramConnectionSummary(req.auth!)
-      .then((result) => {
-        res.status(200).json(result)
-      })
-      .catch(next)
-  })
-
-  router.get('/gmail/status', (req, res, next) => {
-    void integrationsService
-      .getGmailConnectionSummary(req.auth!)
-      .then((result) => {
-        res.status(200).json(result)
-      })
-      .catch(next)
-  })
+  // Keep route strings explicit, dedupe handler wiring.
+  mountStatusRoute('/whatsapp/status', integrationsService.getWhatsAppConnectionSummary)
+  mountStatusRoute('/instagram/status', integrationsService.getInstagramConnectionSummary)
+  mountStatusRoute('/gmail/status', integrationsService.getGmailConnectionSummary)
 
   router.post(
     '/:platform/connect',

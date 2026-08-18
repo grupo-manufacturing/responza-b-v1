@@ -35,6 +35,63 @@ type StoredInboundMediaResult = {
   fileSizeBytes: number
 }
 
+type DownloadedMedia = {
+  buffer: Buffer
+  mimeType: string
+  fileSizeBytes: number
+}
+
+async function storeInboundPlatformMedia(
+  input: {
+    contentType: InboundMediaContentType
+    organizationId: string
+    conversationId: string
+    platformMessageId: string
+    mimeTypeHint: string | null
+    filename?: string | null
+    accessToken: string
+    mediaUrl?: string | null
+    logContext: Record<string, string>
+    download: () => Promise<DownloadedMedia>
+    failedLogLabel: string
+  },
+): Promise<StoredInboundMediaResult | null> {
+  try {
+    const downloaded = await input.download()
+
+    if (downloaded.fileSizeBytes > MEDIA_MAX_FILE_SIZE_BYTES) {
+      logger.warn(`${input.failedLogLabel}: skipping over size limit`, {
+        ...input.logContext,
+        contentType: input.contentType,
+        fileSizeBytes: downloaded.fileSizeBytes,
+        maxBytes: MEDIA_MAX_FILE_SIZE_BYTES,
+      })
+      return null
+    }
+
+    return await persistInboundMediaBuffer({
+      contentType: input.contentType,
+      organizationId: input.organizationId,
+      conversationId: input.conversationId,
+      platformMessageId: input.platformMessageId,
+      buffer: downloaded.buffer,
+      mimeType: downloaded.mimeType,
+      mimeTypeHint: input.mimeTypeHint,
+      filename: input.filename,
+      mediaUrl: input.mediaUrl ?? null,
+      logContext: input.logContext,
+    })
+  } catch (error) {
+    logger.warn(input.failedLogLabel, {
+      ...input.logContext,
+      platformMessageId: input.platformMessageId,
+      contentType: input.contentType,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
 async function persistInboundMediaBuffer(input: {
   contentType: InboundMediaContentType
   organizationId: string
@@ -106,45 +163,26 @@ export async function storeInboundWhatsAppMedia(input: {
   filename?: string | null
   accessToken: string
 }): Promise<StoredInboundMediaResult | null> {
-  try {
-    const downloaded = await fetchWhatsAppMediaBinary({
-      mediaId: input.platformMediaId,
-      accessToken: input.accessToken,
-    })
-
-    if (downloaded.fileSizeBytes > MEDIA_MAX_FILE_SIZE_BYTES) {
-      logger.warn('Skipping WhatsApp media over size limit', {
-        platformMessageId: input.platformMessageId,
-        contentType: input.contentType,
-        fileSizeBytes: downloaded.fileSizeBytes,
-        maxBytes: MEDIA_MAX_FILE_SIZE_BYTES,
-      })
-      return null
-    }
-
-    return await persistInboundMediaBuffer({
-      contentType: input.contentType,
-      organizationId: input.organizationId,
-      conversationId: input.conversationId,
-      platformMessageId: input.platformMessageId,
-      buffer: downloaded.buffer,
-      mimeType: downloaded.mimeType,
-      mimeTypeHint: input.mimeTypeHint,
-      filename: input.filename,
-      logContext: {
-        platform: 'whatsapp',
-        platformMessageId: input.platformMessageId,
-      },
-    })
-  } catch (error) {
-    logger.warn('Failed to store inbound WhatsApp media', {
+  return storeInboundPlatformMedia({
+    contentType: input.contentType,
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    platformMessageId: input.platformMessageId,
+    mimeTypeHint: input.mimeTypeHint,
+    filename: input.filename,
+    accessToken: input.accessToken,
+    logContext: {
+      platform: 'whatsapp',
       platformMessageId: input.platformMessageId,
       platformMediaId: input.platformMediaId,
-      contentType: input.contentType,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
-  }
+    },
+    download: () =>
+      fetchWhatsAppMediaBinary({
+        mediaId: input.platformMediaId,
+        accessToken: input.accessToken,
+      }),
+    failedLogLabel: 'Failed to store inbound WhatsApp media',
+  })
 }
 
 export async function storeInboundInstagramMedia(input: {
@@ -157,45 +195,27 @@ export async function storeInboundInstagramMedia(input: {
   filename?: string | null
   accessToken: string
 }): Promise<StoredInboundMediaResult | null> {
-  try {
-    const downloaded = await fetchInstagramMediaBinary({
-      mediaUrl: input.mediaUrl,
-      accessToken: input.accessToken,
-    })
-
-    if (downloaded.fileSizeBytes > MEDIA_MAX_FILE_SIZE_BYTES) {
-      logger.warn('Skipping Instagram media over size limit', {
-        platformMessageId: input.platformMessageId,
-        contentType: input.contentType,
-        fileSizeBytes: downloaded.fileSizeBytes,
-        maxBytes: MEDIA_MAX_FILE_SIZE_BYTES,
-      })
-      return null
-    }
-
-    return await persistInboundMediaBuffer({
-      contentType: input.contentType,
-      organizationId: input.organizationId,
-      conversationId: input.conversationId,
+  return storeInboundPlatformMedia({
+    contentType: input.contentType,
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    platformMessageId: input.platformMessageId,
+    mimeTypeHint: input.mimeTypeHint,
+    filename: input.filename,
+    accessToken: input.accessToken,
+    mediaUrl: input.mediaUrl,
+    logContext: {
+      platform: 'instagram',
       platformMessageId: input.platformMessageId,
-      buffer: downloaded.buffer,
-      mimeType: downloaded.mimeType,
-      mimeTypeHint: input.mimeTypeHint,
-      filename: input.filename,
       mediaUrl: input.mediaUrl,
-      logContext: {
-        platform: 'instagram',
-        platformMessageId: input.platformMessageId,
-      },
-    })
-  } catch (error) {
-    logger.warn('Failed to store inbound Instagram media', {
-      platformMessageId: input.platformMessageId,
-      contentType: input.contentType,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
-  }
+    },
+    download: () =>
+      fetchInstagramMediaBinary({
+        mediaUrl: input.mediaUrl,
+        accessToken: input.accessToken,
+      }),
+    failedLogLabel: 'Failed to store inbound Instagram media',
+  })
 }
 
 export async function resolveMessageMediaUrl(

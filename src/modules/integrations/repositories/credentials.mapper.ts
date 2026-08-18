@@ -148,37 +148,37 @@ export function normalizeIntegrationCredentialsRow(
 }
 
 export function throwWhatsAppCredentialStoreError(error: { code?: string } | null): never {
-  if (error?.code === '23505') {
-    throw new AppError(
-      409,
-      'CONFLICT',
-      'This WhatsApp phone number is already connected to another organization',
-    )
-  }
-
-  throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store WhatsApp credentials')
+  throwCredentialStoreError(
+    error,
+    'This WhatsApp phone number is already connected to another organization',
+    'Failed to store WhatsApp credentials',
+  )
 }
 
 export function throwInstagramCredentialStoreError(error: { code?: string } | null): never {
-  if (error?.code === '23505') {
-    throw new AppError(
-      409,
-      'CONFLICT',
-      'This Instagram business account is already connected to another organization',
-    )
-  }
-
-  throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store Instagram credentials')
+  throwCredentialStoreError(
+    error,
+    'This Instagram business account is already connected to another organization',
+    'Failed to store Instagram credentials',
+  )
 }
 
 export function throwGmailCredentialStoreError(error: { code?: string } | null): never {
+  throwCredentialStoreError(
+    error,
+    'This Gmail account is already connected to another organization',
+    'Failed to store Gmail credentials',
+  )
+}
+
+function throwCredentialStoreError(
+  error: { code?: string } | null,
+  conflictMessage: string,
+  internalMessage: string,
+): never {
   if (error?.code === '23505') {
-    throw new AppError(
-      409,
-      'CONFLICT',
-      'This Gmail account is already connected to another organization',
-    )
+    throw new AppError(409, 'CONFLICT', conflictMessage)
   }
 
-  throw new AppError(500, 'INTERNAL_ERROR', 'Failed to store Gmail credentials')
+  throw new AppError(500, 'INTERNAL_ERROR', internalMessage)
 }

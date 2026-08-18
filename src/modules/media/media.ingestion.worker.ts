@@ -39,30 +39,37 @@ export async function processInboundMediaIngestionJob(
     })
   }
 
-  const stored =
-    data.platform === 'whatsapp' && data.platformMediaId !== undefined
-      ? await storeInboundWhatsAppMedia({
-          contentType: data.contentType,
-          organizationId: data.organizationId,
-          conversationId: data.conversationId,
-          platformMessageId: data.platformMessageId,
-          platformMediaId: data.platformMediaId,
-          mimeTypeHint: data.mimeTypeHint,
-          filename: data.filename ?? null,
-          accessToken: data.accessToken,
-        })
-      : data.platform === 'instagram' && data.mediaUrl !== undefined
-        ? await storeInboundInstagramMedia({
-            contentType: data.contentType,
-            organizationId: data.organizationId,
-            conversationId: data.conversationId,
-            platformMessageId: data.platformMessageId,
-            mediaUrl: data.mediaUrl,
-            mimeTypeHint: data.mimeTypeHint,
-            filename: data.filename ?? null,
-            accessToken: data.accessToken,
-          })
-        : null
+  let stored: Awaited<ReturnType<typeof storeInboundWhatsAppMedia>> | Awaited<
+    ReturnType<typeof storeInboundInstagramMedia>
+  > | null = null
+
+  if (data.platform === 'whatsapp') {
+    if (data.platformMediaId !== undefined) {
+      stored = await storeInboundWhatsAppMedia({
+        contentType: data.contentType,
+        organizationId: data.organizationId,
+        conversationId: data.conversationId,
+        platformMessageId: data.platformMessageId,
+        platformMediaId: data.platformMediaId,
+        mimeTypeHint: data.mimeTypeHint,
+        filename: data.filename ?? null,
+        accessToken: data.accessToken,
+      })
+    }
+  } else if (data.platform === 'instagram') {
+    if (data.mediaUrl !== undefined) {
+      stored = await storeInboundInstagramMedia({
+        contentType: data.contentType,
+        organizationId: data.organizationId,
+        conversationId: data.conversationId,
+        platformMessageId: data.platformMessageId,
+        mediaUrl: data.mediaUrl,
+        mimeTypeHint: data.mimeTypeHint,
+        filename: data.filename ?? null,
+        accessToken: data.accessToken,
+      })
+    }
+  }
 
   if (stored === null) {
     logger.warn('Inbound media ingestion produced no stored file', {

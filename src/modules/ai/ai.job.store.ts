@@ -68,30 +68,36 @@ export async function getAiJobRecord(
   return getCachedJson<AiJobRecord>(aiJobCacheKey(organizationId, jobId))
 }
 
+async function updateAiJobRecord(
+  organizationId: string,
+  jobId: string,
+  ttlSeconds: number,
+  patch: Partial<Pick<AiJobRecord, 'status' | 'result' | 'error' | 'completedAt'>>,
+): Promise<void> {
+  const existing = await getAiJobRecord(organizationId, jobId)
+  if (existing === null) {
+    return
+  }
+
+  await setCachedJson(
+    aiJobCacheKey(organizationId, jobId),
+    { ...existing, ...patch },
+    ttlSeconds,
+  )
+}
+
 export async function markAiJobCompleted(input: {
   organizationId: string
   jobId: string
   result: unknown
   ttlSeconds: number
 }): Promise<void> {
-  const existing = await getAiJobRecord(input.organizationId, input.jobId)
-  if (existing === null) {
-    return
-  }
-
-  const record: AiJobRecord = {
-    ...existing,
+  await updateAiJobRecord(input.organizationId, input.jobId, input.ttlSeconds, {
     status: 'completed',
     result: input.result,
     error: undefined,
     completedAt: new Date().toISOString(),
-  }
-
-  await setCachedJson(
-    aiJobCacheKey(input.organizationId, input.jobId),
-    record,
-    input.ttlSeconds,
-  )
+  })
 }
 
 export async function markAiJobFailed(input: {
@@ -100,24 +106,12 @@ export async function markAiJobFailed(input: {
   error: AiJobError
   ttlSeconds: number
 }): Promise<void> {
-  const existing = await getAiJobRecord(input.organizationId, input.jobId)
-  if (existing === null) {
-    return
-  }
-
-  const record: AiJobRecord = {
-    ...existing,
+  await updateAiJobRecord(input.organizationId, input.jobId, input.ttlSeconds, {
     status: 'failed',
     result: undefined,
     error: input.error,
     completedAt: new Date().toISOString(),
-  }
-
-  await setCachedJson(
-    aiJobCacheKey(input.organizationId, input.jobId),
-    record,
-    input.ttlSeconds,
-  )
+  })
 }
 
 export function toAiJobStatusResponse(record: AiJobRecord): AiJobStatusResponse {

@@ -6,6 +6,7 @@ import {
 import type {
   WhatsAppIntegrationMetadata,
   InstagramIntegrationMetadata,
+  IntegrationCredentials,
 } from '../modules/integrations/integrations.constants.js'
 import type { OutboundMessageInput, SendMessageResult } from './types.js'
 import { sendInstagramMediaMessage, sendInstagramTextMessage } from './instagram/instagram.connector.js'
@@ -14,16 +15,33 @@ import { uploadWhatsAppMedia } from './whatsapp/uploadMedia.js'
 import { createMessageMediaSignedUrl, downloadMessageMedia } from '../shared/storage/index.js'
 import { isMediaContentType } from '../modules/inbox/inbox.schemas.js'
 
-function isOutboundMediaContentType(
-  contentType: OutboundMessageInput['contentType'],
-): contentType is Exclude<OutboundMessageInput['contentType'], 'text'> {
-  return isMediaContentType(contentType)
+async function resolveCredentials(
+  platform: 'whatsapp' | 'instagram',
+  organizationId: string,
+  integrationId: string,
+): Promise<IntegrationCredentials> {
+  const credentials =
+    platform === 'whatsapp'
+      ? await getWhatsAppCredentialsForOrganization(organizationId)
+      : await getInstagramCredentialsForOrganization(organizationId)
+
+  const platformLabel = platform === 'whatsapp' ? 'WhatsApp' : 'Instagram'
+
+  if (credentials === null) {
+    throw new AppError(400, 'BAD_REQUEST', `Connect ${platformLabel} before sending messages`)
+  }
+
+  if (credentials.integrationId !== integrationId) {
+    throw new AppError(400, 'BAD_REQUEST', `Conversation channel is not linked to ${platformLabel}`)
+  }
+
+  return credentials
 }
 
 export async function dispatchOutboundMessage(
   input: OutboundMessageInput,
 ): Promise<SendMessageResult> {
-  if (isOutboundMediaContentType(input.contentType)) {
+  if (isMediaContentType(input.contentType)) {
     if (input.media === undefined) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Media attachment is required')
     }
@@ -51,15 +69,7 @@ export async function dispatchOutboundMessage(
 async function dispatchWhatsAppTextMessage(
   input: OutboundMessageInput,
 ): Promise<SendMessageResult> {
-  const credentials = await getWhatsAppCredentialsForOrganization(input.organizationId)
-
-  if (credentials === null) {
-    throw new AppError(400, 'BAD_REQUEST', 'Connect WhatsApp before sending messages')
-  }
-
-  if (credentials.integrationId !== input.integrationId) {
-    throw new AppError(400, 'BAD_REQUEST', 'Conversation channel is not linked to WhatsApp')
-  }
+  const credentials = await resolveCredentials('whatsapp', input.organizationId, input.integrationId)
 
   return sendWhatsAppTextMessage({
     to: input.recipientExternalId,
@@ -72,15 +82,7 @@ async function dispatchWhatsAppTextMessage(
 async function dispatchInstagramTextMessage(
   input: OutboundMessageInput,
 ): Promise<SendMessageResult> {
-  const credentials = await getInstagramCredentialsForOrganization(input.organizationId)
-
-  if (credentials === null) {
-    throw new AppError(400, 'BAD_REQUEST', 'Connect Instagram before sending messages')
-  }
-
-  if (credentials.integrationId !== input.integrationId) {
-    throw new AppError(400, 'BAD_REQUEST', 'Conversation channel is not linked to Instagram')
-  }
+  const credentials = await resolveCredentials('instagram', input.organizationId, input.integrationId)
 
   return sendInstagramTextMessage({
     to: input.recipientExternalId,
@@ -93,20 +95,11 @@ async function dispatchInstagramTextMessage(
 async function dispatchWhatsAppMediaMessage(
   input: OutboundMessageInput,
 ): Promise<SendMessageResult> {
-  if (!isOutboundMediaContentType(input.contentType) || input.media === undefined) {
+  if (!isMediaContentType(input.contentType) || input.media === undefined) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Media attachment is required')
   }
 
-  const credentials = await getWhatsAppCredentialsForOrganization(input.organizationId)
-
-  if (credentials === null) {
-    throw new AppError(400, 'BAD_REQUEST', 'Connect WhatsApp before sending messages')
-  }
-
-  if (credentials.integrationId !== input.integrationId) {
-    throw new AppError(400, 'BAD_REQUEST', 'Conversation channel is not linked to WhatsApp')
-  }
-
+  const credentials = await resolveCredentials('whatsapp', input.organizationId, input.integrationId)
   const phoneNumberId = (credentials.metadata as WhatsAppIntegrationMetadata).phone_number_id
   const buffer = await downloadMessageMedia(input.media.storagePath)
   const platformMediaId = await uploadWhatsAppMedia({
@@ -136,27 +129,19 @@ async function dispatchWhatsAppMediaMessage(
 async function dispatchInstagramMediaMessage(
   input: OutboundMessageInput,
 ): Promise<SendMessageResult> {
-  if (!isOutboundMediaContentType(input.contentType) || input.media === undefined) {
+  if (!isMediaContentType(input.contentType) || input.media === undefined) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Media attachment is required')
   }
 
-  const credentials = await getInstagramCredentialsForOrganization(input.organizationId)
-
-  if (credentials === null) {
-    throw new AppError(400, 'BAD_REQUEST', 'Connect Instagram before sending messages')
-  }
-
-  if (credentials.integrationId !== input.integrationId) {
-    throw new AppError(400, 'BAD_REQUEST', 'Conversation channel is not linked to Instagram')
-  }
-
+  const credentials = await resolveCredentials('instagram', input.organizationId, input.integrationId)
+  const businessAccountId = (credentials.metadata as InstagramIntegrationMetadata).business_account_id
   const mediaUrl = await createMessageMediaSignedUrl(input.media.storagePath)
 
   const delivery = await sendInstagramMediaMessage({
     to: input.recipientExternalId,
     contentType: input.contentType,
     mediaUrl,
-    businessAccountId: (credentials.metadata as InstagramIntegrationMetadata).business_account_id,
+    businessAccountId,
     accessToken: credentials.accessToken,
   })
 
@@ -164,7 +149,7 @@ async function dispatchInstagramMediaMessage(
     await sendInstagramTextMessage({
       to: input.recipientExternalId,
       content: input.content,
-      businessAccountId: (credentials.metadata as InstagramIntegrationMetadata).business_account_id,
+      businessAccountId,
       accessToken: credentials.accessToken,
     })
   }
