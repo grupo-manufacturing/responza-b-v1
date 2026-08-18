@@ -19,6 +19,11 @@ import {
   receiveOutboundEcho,
 } from '../../inbox/inbox.service.js'
 
+type WhatsAppWebhookRouting = {
+  phoneNumberId: string | null
+  wabaId: string | null
+}
+
 function formatWhatsAppDisplayName(waId: string, contactName: string | null): string {
   if (contactName !== null) {
     return contactName
@@ -32,10 +37,16 @@ function formatWhatsAppDisplayName(waId: string, contactName: string | null): st
   return waId
 }
 
-async function resolveIntegrationForInbound(input: {
-  phoneNumberId: string | null
-  wabaId: string | null
-}): Promise<IntegrationCredentials | null> {
+function buildWhatsAppParticipant(waId: string, contactDisplayName: string | null) {
+  return {
+    platformUserId: waId,
+    displayName: formatWhatsAppDisplayName(waId, contactDisplayName),
+  }
+}
+
+async function resolveIntegrationForInbound(
+  input: WhatsAppWebhookRouting,
+): Promise<IntegrationCredentials | null> {
   if (input.phoneNumberId !== null) {
     const byPhone = await resolveWhatsAppIntegrationByPhoneNumberId(input.phoneNumberId)
     if (byPhone !== null) {
@@ -48,6 +59,30 @@ async function resolveIntegrationForInbound(input: {
   }
 
   return null
+}
+
+async function processWhatsAppWebhookItems<T extends WhatsAppWebhookRouting>(
+  items: T[],
+  logLabel: string,
+  logContext: (item: T) => Record<string, unknown>,
+  handler: (item: T, integration: IntegrationCredentials) => Promise<void>,
+): Promise<void> {
+  for (const item of items) {
+    try {
+      const integration = await resolveIntegrationForInbound(item)
+
+      if (integration === null) {
+        continue
+      }
+
+      await handler(item, integration)
+    } catch (error) {
+      logger.warn(logLabel, {
+        ...logContext(item),
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 }
 
 export function verifyWhatsAppWebhookChallenge(query: WebhookVerifyQuery): string {
@@ -81,85 +116,56 @@ export async function processWhatsAppWebhook(input: {
   const outboundEchoes = parseWhatsAppOutboundEchoes(input.body)
   const readReceipts = parseWhatsAppOutboundReadReceipts(input.body)
 
-  for (const receipt of readReceipts) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        phoneNumberId: receipt.phoneNumberId,
-        wabaId: receipt.wabaId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
+  await processWhatsAppWebhookItems(
+    readReceipts,
+    'WhatsApp read receipt webhook failed',
+    (receipt) => ({ platformMessageId: receipt.platformMessageId }),
+    async (receipt, integration) => {
       await markOutboundMessageRead({
         organizationId: integration.organizationId,
         platformMessageId: receipt.platformMessageId,
       })
-    } catch (error) {
-      logger.warn('WhatsApp read receipt webhook failed', {
-        platformMessageId: receipt.platformMessageId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
+    },
+  )
 
-  for (const echo of outboundEchoes) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        phoneNumberId: echo.phoneNumberId,
-        wabaId: echo.wabaId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
+  await processWhatsAppWebhookItems(
+    outboundEchoes,
+    'WhatsApp outbound echo webhook failed',
+    (echo) => ({
+      platformMessageId: echo.platformMessageId,
+      recipientId: echo.to,
+    }),
+    async (echo, integration) => {
       await receiveOutboundEcho({
         organizationId: integration.organizationId,
         integrationId: integration.integrationId,
         platform: 'whatsapp',
         channelDisplayName: echo.channelDisplayName ?? 'WhatsApp',
         conversationExternalId: echo.to,
-        participant: {
-          platformUserId: echo.to,
-          displayName: formatWhatsAppDisplayName(echo.to, echo.contactDisplayName),
-        },
+        participant: buildWhatsAppParticipant(echo.to, echo.contactDisplayName),
         message: {
           platformMessageId: echo.platformMessageId,
           content: echo.content,
         },
       })
-    } catch (error) {
-      logger.warn('WhatsApp outbound echo webhook failed', {
-        platformMessageId: echo.platformMessageId,
-        recipientId: echo.to,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
+    },
+  )
 
-  for (const inbound of inboundMessages) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        phoneNumberId: inbound.phoneNumberId,
-        wabaId: inbound.wabaId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
+  await processWhatsAppWebhookItems(
+    inboundMessages,
+    'WhatsApp inbound message webhook failed',
+    (inbound) => ({
+      platformMessageId: inbound.platformMessageId,
+      senderId: inbound.from,
+    }),
+    async (inbound, integration) => {
       await receiveInboundMessage({
         organizationId: integration.organizationId,
         integrationId: integration.integrationId,
         platform: 'whatsapp',
         channelDisplayName: inbound.channelDisplayName ?? 'WhatsApp',
         conversationExternalId: inbound.from,
-        participant: {
-          platformUserId: inbound.from,
-          displayName: formatWhatsAppDisplayName(inbound.from, inbound.contactDisplayName),
-        },
+        participant: buildWhatsAppParticipant(inbound.from, inbound.contactDisplayName),
         accessToken: integration.accessToken,
         message: {
           platformMessageId: inbound.platformMessageId,
@@ -175,12 +181,6 @@ export async function processWhatsAppWebhook(input: {
               : undefined,
         },
       })
-    } catch (error) {
-      logger.warn('WhatsApp inbound message webhook failed', {
-        platformMessageId: inbound.platformMessageId,
-        senderId: inbound.from,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
+    },
+  )
 }

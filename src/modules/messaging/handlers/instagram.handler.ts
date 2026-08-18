@@ -16,6 +16,10 @@ import {
   receiveOutboundEcho,
 } from '../../inbox/inbox.service.js'
 
+type InstagramWebhookRouting = {
+  businessAccountId: string | null
+}
+
 function formatInstagramDisplayName(igsid: string, contactName: string | null): string {
   if (contactName !== null) {
     return contactName
@@ -24,14 +28,46 @@ function formatInstagramDisplayName(igsid: string, contactName: string | null): 
   return igsid.startsWith('@') ? igsid : `@${igsid}`
 }
 
-async function resolveIntegrationForInbound(input: {
-  businessAccountId: string | null
-}): Promise<IntegrationCredentials | null> {
+function buildInstagramParticipant(igsid: string, contactDisplayName: string | null) {
+  return {
+    platformUserId: igsid,
+    displayName: formatInstagramDisplayName(igsid, contactDisplayName),
+    avatarUrl: null as string | null,
+  }
+}
+
+async function resolveIntegrationForInbound(
+  input: InstagramWebhookRouting,
+): Promise<IntegrationCredentials | null> {
   if (input.businessAccountId !== null) {
     return resolveInstagramIntegrationByBusinessId(input.businessAccountId)
   }
 
   return null
+}
+
+async function processInstagramWebhookItems<T extends InstagramWebhookRouting>(
+  items: T[],
+  logLabel: string,
+  logContext: (item: T) => Record<string, unknown>,
+  handler: (item: T, integration: IntegrationCredentials) => Promise<void>,
+): Promise<void> {
+  for (const item of items) {
+    try {
+      const integration = await resolveIntegrationForInbound(item)
+
+      if (integration === null) {
+        continue
+      }
+
+      await handler(item, integration)
+    } catch (error) {
+      logger.warn(logLabel, {
+        ...logContext(item),
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 }
 
 export function verifyInstagramWebhookChallenge(query: WebhookVerifyQuery): string {
@@ -65,91 +101,56 @@ export async function processInstagramWebhook(input: {
   const outboundEchoes = parseInstagramOutboundEchoes(input.body)
   const readReceipts = parseInstagramOutboundReadReceipts(input.body)
 
-  for (const receipt of readReceipts) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        businessAccountId: receipt.businessAccountId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
+  await processInstagramWebhookItems(
+    readReceipts,
+    'Instagram read receipt webhook failed',
+    (receipt) => ({ platformMessageId: receipt.platformMessageId }),
+    async (receipt, integration) => {
       await markOutboundMessageRead({
         organizationId: integration.organizationId,
         platformMessageId: receipt.platformMessageId,
       })
-    } catch (error) {
-      logger.warn('Instagram read receipt webhook failed', {
-        platformMessageId: receipt.platformMessageId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
+    },
+  )
 
-  for (const echo of outboundEchoes) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        businessAccountId: echo.businessAccountId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
-      const displayName = formatInstagramDisplayName(echo.to, null)
-
+  await processInstagramWebhookItems(
+    outboundEchoes,
+    'Instagram outbound echo webhook failed',
+    (echo) => ({
+      platformMessageId: echo.platformMessageId,
+      recipientId: echo.to,
+    }),
+    async (echo, integration) => {
       await receiveOutboundEcho({
         organizationId: integration.organizationId,
         integrationId: integration.integrationId,
         platform: 'instagram',
         channelDisplayName: 'Instagram',
         conversationExternalId: echo.to,
-        participant: {
-          platformUserId: echo.to,
-          displayName,
-          avatarUrl: null,
-        },
+        participant: buildInstagramParticipant(echo.to, null),
         message: {
           platformMessageId: echo.platformMessageId,
           content: echo.content,
         },
       })
-    } catch (error) {
-      logger.warn('Instagram outbound echo webhook failed', {
-        platformMessageId: echo.platformMessageId,
-        recipientId: echo.to,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
+    },
+  )
 
-  for (const inbound of inboundMessages) {
-    try {
-      const integration = await resolveIntegrationForInbound({
-        businessAccountId: inbound.businessAccountId,
-      })
-
-      if (integration === null) {
-        continue
-      }
-
-      const displayName = formatInstagramDisplayName(
-        inbound.from,
-        inbound.contactDisplayName,
-      )
-
+  await processInstagramWebhookItems(
+    inboundMessages,
+    'Instagram inbound message webhook failed',
+    (inbound) => ({
+      platformMessageId: inbound.platformMessageId,
+      senderId: inbound.from,
+    }),
+    async (inbound, integration) => {
       await receiveInboundMessage({
         organizationId: integration.organizationId,
         integrationId: integration.integrationId,
         platform: 'instagram',
         channelDisplayName: 'Instagram',
         conversationExternalId: inbound.from,
-        participant: {
-          platformUserId: inbound.from,
-          displayName,
-          avatarUrl: null,
-        },
+        participant: buildInstagramParticipant(inbound.from, inbound.contactDisplayName),
         accessToken: integration.accessToken,
         message: {
           platformMessageId: inbound.platformMessageId,
@@ -164,12 +165,6 @@ export async function processInstagramWebhook(input: {
               : undefined,
         },
       })
-    } catch (error) {
-      logger.warn('Instagram inbound message webhook failed', {
-        platformMessageId: inbound.platformMessageId,
-        senderId: inbound.from,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-  }
+    },
+  )
 }

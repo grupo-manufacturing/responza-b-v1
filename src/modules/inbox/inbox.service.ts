@@ -35,6 +35,7 @@ import * as inboxRepository from './inbox.repository.js'
 import type {
   ConversationListRecord,
   ConversationRecord,
+  ConversationSendContext,
   MessageRecord,
   ParticipantRecord,
 } from './inbox.repository.js'
@@ -52,17 +53,22 @@ import {
   isAgentDraftReplyPlatform,
 } from './agent-draft-reply.service.js'
 
-type ReceiveInboundMessageInput = {
+type ConversationParticipantInput = {
+  platformUserId: string
+  displayName: string
+  avatarUrl?: string | null
+}
+
+type EnsureConversationInput = {
   organizationId: string
   integrationId: string
   platform: IntegrationPlatform
   channelDisplayName: string
   conversationExternalId: string
-  participant: {
-    platformUserId: string
-    displayName: string
-    avatarUrl?: string | null
-  }
+  participant: ConversationParticipantInput
+}
+
+type ReceiveInboundMessageInput = EnsureConversationInput & {
   message: {
     platformMessageId: string
     content: string
@@ -77,40 +83,73 @@ type ReceiveInboundMessageInput = {
   accessToken?: string
 }
 
-type ReceiveOutboundEchoInput = {
-  organizationId: string
-  integrationId: string
-  platform: IntegrationPlatform
-  channelDisplayName: string
-  conversationExternalId: string
-  participant: {
-    platformUserId: string
-    displayName: string
-    avatarUrl?: string | null
-  }
+type ReceiveOutboundEchoInput = EnsureConversationInput & {
   message: {
     platformMessageId: string
     content: string
   }
 }
 
-type EnsureConversationInput = {
-  organizationId: string
-  integrationId: string
-  platform: IntegrationPlatform
-  channelDisplayName: string
-  conversationExternalId: string
-  participant: {
-    platformUserId: string
-    displayName: string
-    avatarUrl?: string | null
+type PendingMediaIngestion = {
+  platform: Extract<IntegrationPlatform, 'whatsapp' | 'instagram'>
+  contentType: InboundMediaContentType
+  platformMediaId?: string
+  mediaUrl?: string
+  mimeTypeHint: string | null
+  filename?: string | null
+}
+
+async function requireConversationSendContext(
+  organizationId: string,
+  conversationId: string,
+): Promise<ConversationSendContext> {
+  const conversation = await inboxRepository.findConversationSendContext(
+    organizationId,
+    conversationId,
+  )
+
+  if (conversation === null) {
+    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
+  }
+
+  return conversation
+}
+
+async function buildReceiveResult(
+  conversation: ConversationRecord,
+  participant: ParticipantRecord,
+  message: MessageRecord,
+  duplicate: boolean,
+) {
+  return {
+    conversation: toConversationResponse(conversation),
+    participant: toParticipantResponse(participant),
+    message: await toMessageResponse(message),
+    duplicate,
   }
 }
 
-function isInboundMediaContentType(
-  contentType: MessageContentType,
-): contentType is InboundMediaContentType {
-  return contentType !== 'text'
+async function enqueuePendingMediaIngestion(input: {
+  organizationId: string
+  conversationId: string
+  messageId: string
+  platformMessageId: string
+  accessToken: string
+  pending: PendingMediaIngestion
+}): Promise<void> {
+  await enqueueInboundMediaIngestionJob({
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    messageId: input.messageId,
+    platform: input.pending.platform,
+    contentType: input.pending.contentType,
+    platformMessageId: input.platformMessageId,
+    accessToken: input.accessToken,
+    platformMediaId: input.pending.platformMediaId,
+    mediaUrl: input.pending.mediaUrl,
+    mimeTypeHint: input.pending.mimeTypeHint,
+    filename: input.pending.filename ?? null,
+  })
 }
 
 function scheduleAgentDraftReplyIfEligible(input: {
@@ -284,7 +323,7 @@ async function toMessageResponse(message: MessageRecord) {
   if (
     message.storage_path !== null &&
     message.direction === 'inbound' &&
-    isInboundMediaContentType(message.content_type)
+    isMediaContentType(message.content_type)
   ) {
     const storedObjectExists = await messageMediaExists(message.storage_path)
     if (!storedObjectExists) {
@@ -352,14 +391,7 @@ export async function getConversation(
   conversationId: string,
   query: GetConversationQuery = {},
 ) {
-  const conversation = await inboxRepository.findConversationSendContext(
-    auth.organizationId,
-    conversationId,
-  )
-
-  if (conversation === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
-  }
+  const conversation = await requireConversationSendContext(auth.organizationId, conversationId)
 
   const messageLimit = Math.min(
     Math.max(1, query.messageLimit ?? DEFAULT_MESSAGE_PAGE_SIZE),
@@ -413,14 +445,7 @@ export async function uploadOutboundMedia(
       }
     | undefined,
 ) {
-  const conversation = await inboxRepository.findConversationSendContext(
-    auth.organizationId,
-    conversationId,
-  )
-
-  if (conversation === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
-  }
+  await requireConversationSendContext(auth.organizationId, conversationId)
 
   if (file === undefined || file.buffer.byteLength === 0) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Media file is required')
@@ -450,14 +475,7 @@ export async function sendMessage(
   conversationId: string,
   input: SendMessageBody,
 ) {
-  const conversation = await inboxRepository.findConversationSendContext(
-    auth.organizationId,
-    conversationId,
-  )
-
-  if (conversation === null) {
-    throw new AppError(404, 'NOT_FOUND', 'Conversation not found')
-  }
+  const conversation = await requireConversationSendContext(auth.organizationId, conversationId)
 
   const contentType: MessageContentType = input.contentType ?? 'text'
   const content = input.content ?? ''
@@ -557,19 +575,10 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   let mimeType: string | null = null
   let platformMediaId: string | null = null
   let fileSizeBytes: number | null = null
-  let pendingMediaIngestion:
-    | {
-        platform: Extract<IntegrationPlatform, 'whatsapp' | 'instagram'>
-        contentType: InboundMediaContentType
-        platformMediaId?: string
-        mediaUrl?: string
-        mimeTypeHint: string | null
-        filename?: string | null
-      }
-    | null = null
+  let pendingMediaIngestion: PendingMediaIngestion | null = null
 
   if (
-    isInboundMediaContentType(contentType) &&
+    isMediaContentType(contentType) &&
     input.message.media !== undefined &&
     input.accessToken !== undefined
   ) {
@@ -628,27 +637,17 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
       pendingMediaIngestion !== null &&
       input.accessToken !== undefined
     ) {
-      await enqueueInboundMediaIngestionJob({
+      await enqueuePendingMediaIngestion({
         organizationId: input.organizationId,
         conversationId: conversation.id,
         messageId: duplicate.id,
-        platform: pendingMediaIngestion.platform,
-        contentType: pendingMediaIngestion.contentType,
         platformMessageId: input.message.platformMessageId,
         accessToken: input.accessToken,
-        platformMediaId: pendingMediaIngestion.platformMediaId,
-        mediaUrl: pendingMediaIngestion.mediaUrl,
-        mimeTypeHint: pendingMediaIngestion.mimeTypeHint,
-        filename: pendingMediaIngestion.filename ?? null,
+        pending: pendingMediaIngestion,
       })
     }
 
-    return {
-      conversation: toConversationResponse(conversation),
-      participant: toParticipantResponse(participant),
-      message: await toMessageResponse(duplicate),
-      duplicate: true,
-    }
+    return buildReceiveResult(conversation, participant, duplicate, true)
   }
 
   if (!createdConversation) {
@@ -656,18 +655,13 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
   }
 
   if (message !== null && pendingMediaIngestion !== null && input.accessToken !== undefined) {
-    await enqueueInboundMediaIngestionJob({
+    await enqueuePendingMediaIngestion({
       organizationId: input.organizationId,
       conversationId: conversation.id,
       messageId: message.id,
-      platform: pendingMediaIngestion.platform,
-      contentType: pendingMediaIngestion.contentType,
       platformMessageId: input.message.platformMessageId,
       accessToken: input.accessToken,
-      platformMediaId: pendingMediaIngestion.platformMediaId,
-      mediaUrl: pendingMediaIngestion.mediaUrl,
-      mimeTypeHint: pendingMediaIngestion.mimeTypeHint,
-      filename: pendingMediaIngestion.filename ?? null,
+      pending: pendingMediaIngestion,
     })
   }
 
@@ -680,12 +674,7 @@ export async function receiveInboundMessage(input: ReceiveInboundMessageInput) {
     content,
   })
 
-  return {
-    conversation: toConversationResponse(conversation),
-    participant: toParticipantResponse(participant),
-    message: await toMessageResponse(message),
-    duplicate: false,
-  }
+  return buildReceiveResult(conversation, participant, message, false)
 }
 
 export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
@@ -709,22 +698,12 @@ export async function receiveOutboundEcho(input: ReceiveOutboundEchoInput) {
       throw new AppError(500, 'INTERNAL_ERROR', 'Failed to receive outbound echo')
     }
 
-    return {
-      conversation: toConversationResponse(conversation),
-      participant: toParticipantResponse(participant),
-      message: await toMessageResponse(existing),
-      duplicate: true,
-    }
+    return buildReceiveResult(conversation, participant, existing, true)
   }
 
   if (!createdConversation) {
     await usageService.recordBillableConversation(input.organizationId, conversation.id)
   }
 
-  return {
-    conversation: toConversationResponse(conversation),
-    participant: toParticipantResponse(participant),
-    message: await toMessageResponse(message),
-    duplicate: false,
-  }
+  return buildReceiveResult(conversation, participant, message, false)
 }

@@ -1,14 +1,9 @@
-import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { parseGraphApiError } from '../shared/graphErrors.js'
+import { whatsAppGraphApiBaseUrl } from './graphApi.js'
 
 type WhatsAppUploadMediaResponse = {
   id?: string
-}
-
-function graphApiBaseUrl(): string {
-  const { WHATSAPP_GRAPH_VERSION } = loadEnv()
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}`
 }
 
 export async function uploadWhatsAppMedia(input: {
@@ -39,7 +34,7 @@ export async function uploadWhatsAppMedia(input: {
     input.filename?.trim() || 'media',
   )
 
-  const url = `${graphApiBaseUrl()}/${phoneNumberId}/media`
+  const url = `${whatsAppGraphApiBaseUrl()}/${phoneNumberId}/media`
   const response = await fetch(url, {
     method: 'POST',
     headers: {

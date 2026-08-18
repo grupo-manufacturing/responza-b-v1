@@ -1,3 +1,5 @@
+import { decodeCursor, encodeCursor, escapeCursorValue } from './cursor.pagination.js'
+
 export const DEFAULT_MESSAGE_PAGE_SIZE = 50
 export const MAX_MESSAGE_PAGE_SIZE = 100
 
@@ -6,31 +8,18 @@ export type MessageListCursor = {
   id: string
 }
 
+const MESSAGE_LIST_CURSOR_KEYS = ['createdAt', 'id'] as const satisfies readonly (keyof MessageListCursor)[]
+
 export function encodeMessageListCursor(cursor: MessageListCursor): string {
-  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url')
+  return encodeCursor(cursor)
 }
 
 export function decodeMessageListCursor(encoded: string): MessageListCursor | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as unknown
-
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      typeof (parsed as MessageListCursor).createdAt !== 'string' ||
-      typeof (parsed as MessageListCursor).id !== 'string'
-    ) {
-      return null
-    }
-
-    return parsed as MessageListCursor
-  } catch {
-    return null
-  }
+  return decodeCursor<MessageListCursor>(encoded, MESSAGE_LIST_CURSOR_KEYS)
 }
 
 export function messageListBeforeCursorFilter(cursor: MessageListCursor): string {
-  const at = cursor.createdAt.replaceAll('"', '\\"')
-  const id = cursor.id.replaceAll('"', '\\"')
+  const at = escapeCursorValue(cursor.createdAt)
+  const id = escapeCursorValue(cursor.id)
   return `created_at.lt."${at}",and(created_at.eq."${at}",id.lt."${id}")`
 }

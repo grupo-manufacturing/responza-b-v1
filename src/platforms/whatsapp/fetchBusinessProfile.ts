@@ -1,5 +1,5 @@
 import { parseGraphApiError } from '../shared/graphErrors.js'
-import { loadEnv } from '../../shared/config/index.js'
+import { whatsAppGraphApiBaseUrl } from './graphApi.js'
 
 type WhatsAppBusinessProfile = {
   verified_name: string | null
@@ -22,8 +22,7 @@ export async function fetchWhatsAppBusinessProfile(input: {
 }): Promise<WhatsAppBusinessProfile> {
   const phoneNumberId = input.phoneNumberId.trim()
   const accessToken = input.accessToken.trim()
-  const { WHATSAPP_GRAPH_VERSION } = loadEnv()
-  const baseUrl = `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}`
+  const baseUrl = whatsAppGraphApiBaseUrl()
 
   const headers = {
     Authorization: `Bearer ${accessToken}`,

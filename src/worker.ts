@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq'
+import type { Job } from 'bullmq'
 
 import { loadEnv } from './shared/config/index.js'
 import { processAiQueueJob } from './modules/ai/ai.jobs.service.js'
@@ -33,128 +33,102 @@ import {
   type InstagramWebhookJobData,
   type WhatsAppWebhookJobData,
 } from './shared/queue/webhook.queue.js'
-import {
-  attachWorkerLifecycleLogs,
-  isQueueJobLastAttempt,
-  withJobTimeout,
-} from './shared/queue/worker.utils.js'
-import { closeRedisConnection, getRedisConnectionOptions } from './shared/redis/index.js'
+import { createTimedQueueWorker, isQueueJobLastAttempt } from './shared/queue/worker.utils.js'
+import { closeRedisConnection } from './shared/redis/index.js'
 
 const env = loadEnv()
 
 let shuttingDown = false
 
-const webhookWorker = new Worker(
-  WEBHOOK_QUEUE_NAME,
-  async (job) => {
-    await withJobTimeout(
-      env.WEBHOOK_JOB_TIMEOUT_MS,
-      async () => {
-        if (job.name === WEBHOOK_JOB_NAMES.whatsapp) {
-          await processWhatsAppWebhookJob(job.data as WhatsAppWebhookJobData)
-          logger.info(`WhatsApp webhook job processed: ${job.id ?? 'unknown'}`)
-          return
-        }
-
-        if (job.name === WEBHOOK_JOB_NAMES.instagram) {
-          await processInstagramWebhookJob(job.data as InstagramWebhookJobData)
-          logger.info(`Instagram webhook job processed: ${job.id ?? 'unknown'}`)
-          return
-        }
-
-        throw new Error(`Unhandled webhook job type: ${job.name}`)
-      },
-      `Webhook job timed out after ${env.WEBHOOK_JOB_TIMEOUT_MS}ms`,
-    )
+const webhookJobHandlers = {
+  [WEBHOOK_JOB_NAMES.whatsapp]: {
+    label: 'WhatsApp',
+    process: (data: WhatsAppWebhookJobData) => processWhatsAppWebhookJob(data),
   },
-  {
-    connection: getRedisConnectionOptions(),
+  [WEBHOOK_JOB_NAMES.instagram]: {
+    label: 'Instagram',
+    process: (data: InstagramWebhookJobData) => processInstagramWebhookJob(data),
+  },
+} as const
+
+async function processWebhookJob(job: Job): Promise<void> {
+  const handler = webhookJobHandlers[job.name as keyof typeof webhookJobHandlers]
+  if (handler === undefined) {
+    throw new Error(`Unhandled webhook job type: ${job.name}`)
+  }
+
+  await handler.process(job.data as WhatsAppWebhookJobData & InstagramWebhookJobData)
+  logger.info(`${handler.label} webhook job processed: ${job.id ?? 'unknown'}`)
+}
+
+async function processMediaJob(job: Job): Promise<void> {
+  if (job.name !== MEDIA_JOB_NAMES.ingest) {
+    throw new Error(`Unhandled media job type: ${job.name}`)
+  }
+
+  await processInboundMediaIngestionJob(job.data as InboundMediaIngestionJobData)
+  logger.info(`Media ingestion job processed: ${job.id ?? 'unknown'}`)
+}
+
+async function processAiJob(job: Job): Promise<void> {
+  if (job.name !== AI_JOB_NAMES.run) {
+    throw new Error(`Unhandled AI job type: ${job.name}`)
+  }
+
+  const data = job.data as AiQueueJobData
+  if (data.type === 'agent-draft-reply') {
+    await runAgentDraftReply(data.payload as AgentDraftReplyPayload)
+    logger.info(`Agent draft reply job processed: ${job.id ?? 'unknown'}`)
+    return
+  }
+
+  await processAiQueueJob(data, {
+    markFailed: isQueueJobLastAttempt(job),
+  })
+  logger.info(`AI job processed: ${job.id ?? 'unknown'}`)
+}
+
+async function processKnowledgeJob(job: Job): Promise<void> {
+  if (job.name !== KNOWLEDGE_JOB_NAMES.ingest && job.name !== KNOWLEDGE_JOB_NAMES.index) {
+    throw new Error(`Unhandled knowledge job type: ${job.name}`)
+  }
+
+  await processKnowledgeQueueJob(job.name, job.data as KnowledgeQueueJobData)
+  logger.info(`Knowledge job processed: ${job.id ?? 'unknown'}`)
+}
+
+const workers = [
+  createTimedQueueWorker({
+    queueName: WEBHOOK_QUEUE_NAME,
+    timeoutMs: env.WEBHOOK_JOB_TIMEOUT_MS,
     concurrency: env.WEBHOOK_WORKER_CONCURRENCY,
-  },
-)
-
-const mediaWorker = new Worker(
-  MEDIA_QUEUE_NAME,
-  async (job) => {
-    await withJobTimeout(
-      env.MEDIA_JOB_TIMEOUT_MS,
-      async () => {
-        if (job.name === MEDIA_JOB_NAMES.ingest) {
-          await processInboundMediaIngestionJob(job.data as InboundMediaIngestionJobData)
-          logger.info(`Media ingestion job processed: ${job.id ?? 'unknown'}`)
-          return
-        }
-
-        throw new Error(`Unhandled media job type: ${job.name}`)
-      },
-      `Media ingestion job timed out after ${env.MEDIA_JOB_TIMEOUT_MS}ms`,
-    )
-  },
-  {
-    connection: getRedisConnectionOptions(),
+    timeoutLabel: 'Webhook job',
+    processJob: processWebhookJob,
+  }),
+  createTimedQueueWorker({
+    queueName: MEDIA_QUEUE_NAME,
+    timeoutMs: env.MEDIA_JOB_TIMEOUT_MS,
     concurrency: env.MEDIA_WORKER_CONCURRENCY,
-  },
-)
-
-const aiWorker = new Worker(
-  AI_QUEUE_NAME,
-  async (job) => {
-    await withJobTimeout(
-      env.AI_JOB_TIMEOUT_MS,
-      async () => {
-        if (job.name === AI_JOB_NAMES.run) {
-          const data = job.data as AiQueueJobData
-          if (data.type === 'agent-draft-reply') {
-            await runAgentDraftReply(data.payload as AgentDraftReplyPayload)
-            logger.info(`Agent draft reply job processed: ${job.id ?? 'unknown'}`)
-            return
-          }
-
-          await processAiQueueJob(data, {
-            markFailed: isQueueJobLastAttempt(job),
-          })
-          logger.info(`AI job processed: ${job.id ?? 'unknown'}`)
-          return
-        }
-
-        throw new Error(`Unhandled AI job type: ${job.name}`)
-      },
-      `AI job timed out after ${env.AI_JOB_TIMEOUT_MS}ms`,
-    )
-  },
-  {
-    connection: getRedisConnectionOptions(),
+    timeoutLabel: 'Media ingestion job',
+    processJob: processMediaJob,
+  }),
+  createTimedQueueWorker({
+    queueName: AI_QUEUE_NAME,
+    timeoutMs: env.AI_JOB_TIMEOUT_MS,
     concurrency: env.AI_WORKER_CONCURRENCY,
-  },
-)
-
-const knowledgeWorker = new Worker(
-  KNOWLEDGE_QUEUE_NAME,
-  async (job) => {
-    await withJobTimeout(
-      env.KNOWLEDGE_JOB_TIMEOUT_MS,
-      async () => {
-        if (job.name === KNOWLEDGE_JOB_NAMES.ingest || job.name === KNOWLEDGE_JOB_NAMES.index) {
-          await processKnowledgeQueueJob(job.name, job.data as KnowledgeQueueJobData)
-          logger.info(`Knowledge job processed: ${job.id ?? 'unknown'}`)
-          return
-        }
-
-        throw new Error(`Unhandled knowledge job type: ${job.name}`)
-      },
-      `Knowledge job timed out after ${env.KNOWLEDGE_JOB_TIMEOUT_MS}ms`,
-    )
-  },
-  {
-    connection: getRedisConnectionOptions(),
+    timeoutLabel: 'AI job',
+    processJob: processAiJob,
+  }),
+  createTimedQueueWorker({
+    queueName: KNOWLEDGE_QUEUE_NAME,
+    timeoutMs: env.KNOWLEDGE_JOB_TIMEOUT_MS,
     concurrency: env.KNOWLEDGE_WORKER_CONCURRENCY,
-  },
-)
+    timeoutLabel: 'Knowledge job',
+    processJob: processKnowledgeJob,
+  }),
+]
 
-attachWorkerLifecycleLogs(webhookWorker, WEBHOOK_QUEUE_NAME)
-attachWorkerLifecycleLogs(mediaWorker, MEDIA_QUEUE_NAME)
-attachWorkerLifecycleLogs(aiWorker, AI_QUEUE_NAME)
-attachWorkerLifecycleLogs(knowledgeWorker, KNOWLEDGE_QUEUE_NAME)
+const closeQueues = [closeWebhookQueue, closeMediaQueue, closeAiQueue, closeKnowledgeQueue]
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) {
@@ -163,14 +137,15 @@ async function shutdown(signal: string): Promise<void> {
 
   shuttingDown = true
   logger.info(`Shutting down worker (${signal})`)
-  await webhookWorker.close()
-  await mediaWorker.close()
-  await aiWorker.close()
-  await knowledgeWorker.close()
-  await closeWebhookQueue()
-  await closeMediaQueue()
-  await closeAiQueue()
-  await closeKnowledgeQueue()
+
+  for (const worker of workers) {
+    await worker.close()
+  }
+
+  for (const closeQueue of closeQueues) {
+    await closeQueue()
+  }
+
   await closeRedisConnection()
 }
 

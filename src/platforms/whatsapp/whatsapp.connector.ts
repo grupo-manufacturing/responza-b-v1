@@ -1,15 +1,10 @@
 import { parseGraphApiError } from '../shared/graphErrors.js'
-import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import type { OutboundMediaContentType, SendMessageResult } from '../types.js'
+import { whatsAppGraphApiBaseUrl } from './graphApi.js'
 
 type GraphMessagesResponse = {
   messages?: Array<{ id?: string }>
-}
-
-function graphApiBaseUrl(): string {
-  const { WHATSAPP_GRAPH_VERSION } = loadEnv()
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}`
 }
 
 async function postWhatsAppMessage(input: {
@@ -18,7 +13,7 @@ async function postWhatsAppMessage(input: {
   to: string
   body: Record<string, unknown>
 }): Promise<SendMessageResult> {
-  const url = `${graphApiBaseUrl()}/${input.phoneNumberId}/messages`
+  const url = `${whatsAppGraphApiBaseUrl()}/${input.phoneNumberId}/messages`
   const response = await fetch(url, {
     method: 'POST',
     headers: {

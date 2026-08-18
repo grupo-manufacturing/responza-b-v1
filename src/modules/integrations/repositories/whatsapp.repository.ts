@@ -40,28 +40,18 @@ export async function findWhatsAppCredentialsByOrganization(
 export async function findConnectedWhatsAppByPhoneNumberId(
   phoneNumberId: string,
 ): Promise<IntegrationCredentialsRow | null> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('integrations')
-    .select(INTEGRATION_CREDENTIAL_COLUMNS)
-    .eq('platform', 'whatsapp')
-    .eq('status', 'connected')
-    .eq('metadata->>phone_number_id', phoneNumberId)
-    .maybeSingle()
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to resolve WhatsApp integration')
-  }
-
-  if (data === null) {
-    return null
-  }
-
-  return normalizeIntegrationCredentialsRow(data)
+  return findConnectedWhatsAppByMetadataKey('phone_number_id', phoneNumberId)
 }
 
 export async function findConnectedWhatsAppByWabaId(
   wabaId: string,
+): Promise<IntegrationCredentialsRow | null> {
+  return findConnectedWhatsAppByMetadataKey('waba_id', wabaId)
+}
+
+async function findConnectedWhatsAppByMetadataKey(
+  metadataKey: 'phone_number_id' | 'waba_id',
+  metadataValue: string,
 ): Promise<IntegrationCredentialsRow | null> {
   const client = getSupabaseAdminClient()
   const { data, error } = await client
@@ -69,7 +59,7 @@ export async function findConnectedWhatsAppByWabaId(
     .select(INTEGRATION_CREDENTIAL_COLUMNS)
     .eq('platform', 'whatsapp')
     .eq('status', 'connected')
-    .eq('metadata->>waba_id', wabaId)
+    .eq(`metadata->>${metadataKey}`, metadataValue)
     .maybeSingle()
 
   if (error !== null) {

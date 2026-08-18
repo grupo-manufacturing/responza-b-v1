@@ -100,14 +100,18 @@ function messageContent(message: Record<string, unknown>): {
   }
 }
 
-export function parseInstagramInboundMessages(body: unknown): InstagramInboundMessage[] {
+type InstagramMessagingContext = {
+  businessAccountId: string | null
+  messaging: unknown[]
+}
+
+function* iterateInstagramMessaging(body: unknown): Generator<InstagramMessagingContext> {
   const payload = asRecord(body)
   if (payload === null || payload.object !== 'instagram') {
-    return []
+    return
   }
 
   const entries = Array.isArray(payload.entry) ? payload.entry : []
-  const inbound: InstagramInboundMessage[] = []
 
   for (const entryValue of entries) {
     const entry = asRecord(entryValue)
@@ -115,9 +119,17 @@ export function parseInstagramInboundMessages(body: unknown): InstagramInboundMe
       continue
     }
 
-    const businessAccountId = asString(entry.id)
-    const messaging = Array.isArray(entry.messaging) ? entry.messaging : []
+    yield {
+      businessAccountId: asString(entry.id),
+      messaging: Array.isArray(entry.messaging) ? entry.messaging : [],
+    }
+  }
+}
 
+export function parseInstagramInboundMessages(body: unknown): InstagramInboundMessage[] {
+  const inbound: InstagramInboundMessage[] = []
+
+  for (const { businessAccountId, messaging } of iterateInstagramMessaging(body)) {
     for (const messageValue of messaging) {
       const messageEvent = asRecord(messageValue)
       if (messageEvent === null) {
@@ -161,23 +173,9 @@ export function parseInstagramInboundMessages(body: unknown): InstagramInboundMe
 }
 
 export function parseInstagramOutboundEchoes(body: unknown): InstagramOutboundEcho[] {
-  const payload = asRecord(body)
-  if (payload === null || payload.object !== 'instagram') {
-    return []
-  }
-
-  const entries = Array.isArray(payload.entry) ? payload.entry : []
   const echoes: InstagramOutboundEcho[] = []
 
-  for (const entryValue of entries) {
-    const entry = asRecord(entryValue)
-    if (entry === null) {
-      continue
-    }
-
-    const businessAccountId = asString(entry.id)
-    const messaging = Array.isArray(entry.messaging) ? entry.messaging : []
-
+  for (const { businessAccountId, messaging } of iterateInstagramMessaging(body)) {
     for (const messageValue of messaging) {
       const messageEvent = asRecord(messageValue)
       if (messageEvent === null) {
@@ -220,23 +218,9 @@ export function parseInstagramOutboundEchoes(body: unknown): InstagramOutboundEc
 }
 
 export function parseInstagramOutboundReadReceipts(body: unknown): InstagramOutboundReadReceipt[] {
-  const payload = asRecord(body)
-  if (payload === null || payload.object !== 'instagram') {
-    return []
-  }
-
-  const entries = Array.isArray(payload.entry) ? payload.entry : []
   const receipts: InstagramOutboundReadReceipt[] = []
 
-  for (const entryValue of entries) {
-    const entry = asRecord(entryValue)
-    if (entry === null) {
-      continue
-    }
-
-    const businessAccountId = asString(entry.id)
-    const messaging = Array.isArray(entry.messaging) ? entry.messaging : []
-
+  for (const { businessAccountId, messaging } of iterateInstagramMessaging(body)) {
     for (const messageValue of messaging) {
       const messageEvent = asRecord(messageValue)
       if (messageEvent === null) {

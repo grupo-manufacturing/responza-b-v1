@@ -114,6 +114,7 @@ export async function resolveInstagramParticipantProfile(input: {
     return profile
   }
 
+  // Retry with Authorization header instead of query param
   const url = new URL(`https://graph.instagram.com/${INSTAGRAM_GRAPH_VERSION}/${igsid}`)
   url.searchParams.set('fields', 'name,username,profile_pic')
 

@@ -114,14 +114,45 @@ function contactNamesByWaId(contacts: unknown): Map<string, string> {
   return names
 }
 
-export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMessage[] {
+type WhatsAppWebhookChangeContext = {
+  wabaId: string | null
+  phoneNumberId: string | null
+  channelDisplayName: string | null
+  contactNames: Map<string, string>
+  value: Record<string, unknown>
+  field: string | null
+}
+
+function readWhatsAppChangeContext(
+  entry: Record<string, unknown>,
+  change: Record<string, unknown>,
+): WhatsAppWebhookChangeContext | null {
+  const value = asRecord(change.value)
+  if (value === null) {
+    return null
+  }
+
+  const metadata = asRecord(value.metadata)
+
+  return {
+    wabaId: asString(entry.id),
+    phoneNumberId: asString(metadata?.phone_number_id),
+    channelDisplayName: asString(metadata?.display_phone_number),
+    contactNames: contactNamesByWaId(value.contacts),
+    value,
+    field: asString(change.field),
+  }
+}
+
+function* iterateWhatsAppWebhookChanges(
+  body: unknown,
+): Generator<WhatsAppWebhookChangeContext> {
   const payload = asRecord(body)
   if (payload === null || payload.object !== 'whatsapp_business_account') {
-    return []
+    return
   }
 
   const entries = Array.isArray(payload.entry) ? payload.entry : []
-  const inbound: WhatsAppInboundMessage[] = []
 
   for (const entryValue of entries) {
     const entry = asRecord(entryValue)
@@ -129,7 +160,6 @@ export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMess
       continue
     }
 
-    const wabaId = asString(entry.id)
     const changes = Array.isArray(entry.changes) ? entry.changes : []
 
     for (const changeValue of changes) {
@@ -138,47 +168,49 @@ export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMess
         continue
       }
 
-      const value = asRecord(change.value)
-      if (value === null) {
+      const context = readWhatsAppChangeContext(entry, change)
+      if (context !== null) {
+        yield context
+      }
+    }
+  }
+}
+
+export function parseWhatsAppInboundMessages(body: unknown): WhatsAppInboundMessage[] {
+  const inbound: WhatsAppInboundMessage[] = []
+
+  for (const context of iterateWhatsAppWebhookChanges(body)) {
+    const messages = Array.isArray(context.value.messages) ? context.value.messages : []
+
+    for (const messageValue of messages) {
+      const message = asRecord(messageValue)
+      if (message === null) {
         continue
       }
 
-      const metadata = asRecord(value.metadata)
-      const phoneNumberId = asString(metadata?.phone_number_id)
-      const channelDisplayName = asString(metadata?.display_phone_number)
-      const contactNames = contactNamesByWaId(value.contacts)
-      const messages = Array.isArray(value.messages) ? value.messages : []
-
-      for (const messageValue of messages) {
-        const message = asRecord(messageValue)
-        if (message === null) {
-          continue
-        }
-
-        if (asString(message.type) === 'reaction') {
-          continue
-        }
-
-        const from = asString(message.from)
-        const platformMessageId = asString(message.id)
-        if (from === null || platformMessageId === null) {
-          continue
-        }
-
-        const parsed = messageContent(message)
-
-        inbound.push({
-          phoneNumberId,
-          wabaId,
-          channelDisplayName,
-          from,
-          platformMessageId,
-          contentType: parsed.contentType,
-          content: parsed.content,
-          contactDisplayName: contactNames.get(from) ?? null,
-          media: parsed.media,
-        })
+      if (asString(message.type) === 'reaction') {
+        continue
       }
+
+      const from = asString(message.from)
+      const platformMessageId = asString(message.id)
+      if (from === null || platformMessageId === null) {
+        continue
+      }
+
+      const parsed = messageContent(message)
+
+      inbound.push({
+        phoneNumberId: context.phoneNumberId,
+        wabaId: context.wabaId,
+        channelDisplayName: context.channelDisplayName,
+        from,
+        platformMessageId,
+        contentType: parsed.contentType,
+        content: parsed.content,
+        contactDisplayName: context.contactNames.get(from) ?? null,
+        media: parsed.media,
+      })
     }
   }
 
@@ -198,71 +230,40 @@ function readWhatsAppEchoMessages(value: Record<string, unknown>): unknown[] {
 }
 
 export function parseWhatsAppOutboundEchoes(body: unknown): WhatsAppOutboundEcho[] {
-  const payload = asRecord(body)
-  if (payload === null || payload.object !== 'whatsapp_business_account') {
-    return []
-  }
-
-  const entries = Array.isArray(payload.entry) ? payload.entry : []
   const echoes: WhatsAppOutboundEcho[] = []
 
-  for (const entryValue of entries) {
-    const entry = asRecord(entryValue)
-    if (entry === null) {
+  for (const context of iterateWhatsAppWebhookChanges(body)) {
+    if (context.field !== null && context.field !== 'smb_message_echoes') {
       continue
     }
 
-    const wabaId = asString(entry.id)
-    const changes = Array.isArray(entry.changes) ? entry.changes : []
+    const echoMessages = readWhatsAppEchoMessages(context.value)
 
-    for (const changeValue of changes) {
-      const change = asRecord(changeValue)
-      if (change === null) {
+    for (const messageValue of echoMessages) {
+      const message = asRecord(messageValue)
+      if (message === null) {
         continue
       }
 
-      const field = asString(change.field)
-      if (field !== null && field !== 'smb_message_echoes') {
+      if (asString(message.type) === 'reaction') {
         continue
       }
 
-      const value = asRecord(change.value)
-      if (value === null) {
+      const to = asString(message.to)
+      const platformMessageId = asString(message.id)
+      if (to === null || platformMessageId === null) {
         continue
       }
 
-      const metadata = asRecord(value.metadata)
-      const phoneNumberId = asString(metadata?.phone_number_id)
-      const channelDisplayName = asString(metadata?.display_phone_number)
-      const contactNames = contactNamesByWaId(value.contacts)
-      const echoMessages = readWhatsAppEchoMessages(value)
-
-      for (const messageValue of echoMessages) {
-        const message = asRecord(messageValue)
-        if (message === null) {
-          continue
-        }
-
-        if (asString(message.type) === 'reaction') {
-          continue
-        }
-
-        const to = asString(message.to)
-        const platformMessageId = asString(message.id)
-        if (to === null || platformMessageId === null) {
-          continue
-        }
-
-        echoes.push({
-          phoneNumberId,
-          wabaId,
-          channelDisplayName,
-          to,
-          platformMessageId,
-          content: messageContent(message).content,
-          contactDisplayName: contactNames.get(to) ?? null,
-        })
-      }
+      echoes.push({
+        phoneNumberId: context.phoneNumberId,
+        wabaId: context.wabaId,
+        channelDisplayName: context.channelDisplayName,
+        to,
+        platformMessageId,
+        content: messageContent(message).content,
+        contactDisplayName: context.contactNames.get(to) ?? null,
+      })
     }
   }
 
@@ -270,59 +271,31 @@ export function parseWhatsAppOutboundEchoes(body: unknown): WhatsAppOutboundEcho
 }
 
 export function parseWhatsAppOutboundReadReceipts(body: unknown): WhatsAppOutboundReadReceipt[] {
-  const payload = asRecord(body)
-  if (payload === null || payload.object !== 'whatsapp_business_account') {
-    return []
-  }
-
-  const entries = Array.isArray(payload.entry) ? payload.entry : []
   const receipts: WhatsAppOutboundReadReceipt[] = []
 
-  for (const entryValue of entries) {
-    const entry = asRecord(entryValue)
-    if (entry === null) {
-      continue
-    }
+  for (const context of iterateWhatsAppWebhookChanges(body)) {
+    const statuses = Array.isArray(context.value.statuses) ? context.value.statuses : []
 
-    const wabaId = asString(entry.id)
-    const changes = Array.isArray(entry.changes) ? entry.changes : []
-
-    for (const changeValue of changes) {
-      const change = asRecord(changeValue)
-      if (change === null) {
+    for (const statusValue of statuses) {
+      const status = asRecord(statusValue)
+      if (status === null) {
         continue
       }
 
-      const value = asRecord(change.value)
-      if (value === null) {
+      if (asString(status.status) !== 'read') {
         continue
       }
 
-      const metadata = asRecord(value.metadata)
-      const phoneNumberId = asString(metadata?.phone_number_id)
-      const statuses = Array.isArray(value.statuses) ? value.statuses : []
-
-      for (const statusValue of statuses) {
-        const status = asRecord(statusValue)
-        if (status === null) {
-          continue
-        }
-
-        if (asString(status.status) !== 'read') {
-          continue
-        }
-
-        const platformMessageId = asString(status.id)
-        if (platformMessageId === null) {
-          continue
-        }
-
-        receipts.push({
-          phoneNumberId,
-          wabaId,
-          platformMessageId,
-        })
+      const platformMessageId = asString(status.id)
+      if (platformMessageId === null) {
+        continue
       }
+
+      receipts.push({
+        phoneNumberId: context.phoneNumberId,
+        wabaId: context.wabaId,
+        platformMessageId,
+      })
     }
   }
 

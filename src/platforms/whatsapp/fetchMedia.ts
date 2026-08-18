@@ -1,16 +1,11 @@
-import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { parseGraphApiError } from '../shared/graphErrors.js'
+import { whatsAppGraphApiBaseUrl } from './graphApi.js'
 
 type WhatsAppMediaMetadataResponse = {
   url?: string
   mime_type?: string
   file_size?: number
-}
-
-function graphApiBaseUrl(): string {
-  const { WHATSAPP_GRAPH_VERSION } = loadEnv()
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}`
 }
 
 export async function fetchWhatsAppMediaBinary(input: {
@@ -24,7 +19,7 @@ export async function fetchWhatsAppMediaBinary(input: {
     throw new AppError(400, 'BAD_REQUEST', 'WhatsApp media credentials are missing')
   }
 
-  const metadataUrl = `${graphApiBaseUrl()}/${mediaId}`
+  const metadataUrl = `${whatsAppGraphApiBaseUrl()}/${mediaId}`
   const metadataResponse = await fetch(metadataUrl, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

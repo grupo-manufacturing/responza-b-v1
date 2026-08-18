@@ -1,13 +1,14 @@
 import { parseGraphApiError } from '../shared/graphErrors.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
+import { whatsAppGraphApiBaseUrl } from './graphApi.js'
 
 type GraphTokenResponse = {
   access_token?: string
 }
 
 export async function exchangeWhatsAppAccessToken(code: string): Promise<string> {
-  const { META_APP_ID, META_APP_SECRET, WHATSAPP_GRAPH_VERSION } = loadEnv()
+  const { META_APP_ID, META_APP_SECRET } = loadEnv()
   const trimmedCode = code.trim()
 
   if (trimmedCode.length === 0) {
@@ -18,7 +19,7 @@ export async function exchangeWhatsAppAccessToken(code: string): Promise<string>
     throw new AppError(500, 'INTERNAL_ERROR', 'META_APP_ID and META_APP_SECRET are required on server')
   }
 
-  const url = new URL(`https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/oauth/access_token`)
+  const url = new URL(`${whatsAppGraphApiBaseUrl()}/oauth/access_token`)
   url.searchParams.set('client_id', META_APP_ID)
   url.searchParams.set('client_secret', META_APP_SECRET)
   url.searchParams.set('code', trimmedCode)

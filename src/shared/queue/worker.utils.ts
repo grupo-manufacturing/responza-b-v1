@@ -1,6 +1,15 @@
-import type { Job, Worker } from 'bullmq'
+import { Worker, type Job } from 'bullmq'
 
 import { logger } from '../logger.js'
+import { getRedisConnectionOptions } from '../redis/index.js'
+
+export type TimedQueueWorkerConfig = {
+  queueName: string
+  timeoutMs: number
+  concurrency: number
+  timeoutLabel: string
+  processJob: (job: Job) => Promise<void>
+}
 
 export function isDuplicateQueueJobError(error: unknown): boolean {
   return error instanceof Error && error.message.includes('Job already exists')
@@ -66,6 +75,26 @@ export function logWorkerJobFailure(queueName: string, job: Job | undefined, err
   }
 
   logger.warn('Worker job attempt failed', context)
+}
+
+export function createTimedQueueWorker(config: TimedQueueWorkerConfig): Worker {
+  const worker = new Worker(
+    config.queueName,
+    async (job) => {
+      await withJobTimeout(
+        config.timeoutMs,
+        async () => config.processJob(job),
+        `${config.timeoutLabel} timed out after ${config.timeoutMs}ms`,
+      )
+    },
+    {
+      connection: getRedisConnectionOptions(),
+      concurrency: config.concurrency,
+    },
+  )
+
+  attachWorkerLifecycleLogs(worker, config.queueName)
+  return worker
 }
 
 export function attachWorkerLifecycleLogs(worker: Worker, queueName: string): void {

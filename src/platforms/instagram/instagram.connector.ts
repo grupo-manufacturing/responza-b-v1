@@ -1,7 +1,7 @@
 import { parseGraphApiError, type GraphErrorBody } from '../shared/graphErrors.js'
-import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import type { OutboundMediaContentType, SendMessageResult } from '../types.js'
+import { instagramGraphApiBaseUrl } from './graphApi.js'
 
 type InstagramMessagesResponse = {
   message_id?: string
@@ -13,11 +13,6 @@ const INSTAGRAM_ATTACHMENT_TYPE: Record<OutboundMediaContentType, string> = {
   video: 'video',
   audio: 'audio',
   document: 'file',
-}
-
-function graphApiBaseUrl(): string {
-  const { INSTAGRAM_GRAPH_VERSION } = loadEnv()
-  return `https://graph.instagram.com/${INSTAGRAM_GRAPH_VERSION}`
 }
 
 export async function sendInstagramTextMessage(input: {
@@ -39,7 +34,7 @@ export async function sendInstagramTextMessage(input: {
     throw new AppError(400, 'BAD_REQUEST', 'Instagram is not configured for sending')
   }
 
-  const url = `${graphApiBaseUrl()}/${businessAccountId}/messages`
+  const url = `${instagramGraphApiBaseUrl()}/${businessAccountId}/messages`
 
   const sendRequest = async () => {
     const response = await fetch(url, {
@@ -115,7 +110,7 @@ export async function sendInstagramMediaMessage(input: {
     throw new AppError(400, 'BAD_REQUEST', 'Instagram is not configured for sending')
   }
 
-  const url = `${graphApiBaseUrl()}/${businessAccountId}/messages`
+  const url = `${instagramGraphApiBaseUrl()}/${businessAccountId}/messages`
   const response = await fetch(url, {
     method: 'POST',
     headers: {
