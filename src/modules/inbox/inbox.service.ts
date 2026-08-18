@@ -52,7 +52,7 @@ import {
   isAgentDraftReplyPlatform,
 } from './agent-draft-reply.service.js'
 
-export type ReceiveInboundMessageInput = {
+type ReceiveInboundMessageInput = {
   organizationId: string
   integrationId: string
   platform: IntegrationPlatform
@@ -77,7 +77,7 @@ export type ReceiveInboundMessageInput = {
   accessToken?: string
 }
 
-export type ReceiveOutboundEchoInput = {
+type ReceiveOutboundEchoInput = {
   organizationId: string
   integrationId: string
   platform: IntegrationPlatform

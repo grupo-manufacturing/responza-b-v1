@@ -2,7 +2,7 @@ import type { InstagramWebhookJobData, WhatsAppWebhookJobData } from '../../shar
 import { processInstagramWebhook } from './handlers/instagram.handler.js'
 import { processWhatsAppWebhook } from './handlers/whatsapp.handler.js'
 
-export type WebhookHandlerInput = {
+type WebhookHandlerInput = {
   rawBody: Buffer
   signatureHeader: string | undefined
   body: unknown
@@ -10,7 +10,7 @@ export type WebhookHandlerInput = {
 
 type WebhookJobData = WhatsAppWebhookJobData | InstagramWebhookJobData
 
-export function webhookJobDataToHandlerInput(data: WebhookJobData): WebhookHandlerInput {
+function webhookJobDataToHandlerInput(data: WebhookJobData): WebhookHandlerInput {
   return {
     rawBody: Buffer.from(data.rawBodyBase64, 'base64'),
     signatureHeader: data.signatureHeader,

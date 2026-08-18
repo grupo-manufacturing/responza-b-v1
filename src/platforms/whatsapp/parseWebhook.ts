@@ -2,7 +2,7 @@ import { asRecord, asString } from '../shared/jsonGuards.js'
 
 export type WhatsAppInboundContentType = 'text' | 'image' | 'video' | 'audio' | 'document'
 
-export type WhatsAppInboundMessage = {
+type WhatsAppInboundMessage = {
   phoneNumberId: string | null
   wabaId: string | null
   channelDisplayName: string | null
@@ -18,13 +18,13 @@ export type WhatsAppInboundMessage = {
   }
 }
 
-export type WhatsAppOutboundReadReceipt = {
+type WhatsAppOutboundReadReceipt = {
   phoneNumberId: string | null
   wabaId: string | null
   platformMessageId: string
 }
 
-export type WhatsAppOutboundEcho = {
+type WhatsAppOutboundEcho = {
   phoneNumberId: string | null
   wabaId: string | null
   channelDisplayName: string | null

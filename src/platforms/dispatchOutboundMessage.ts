@@ -8,9 +8,8 @@ import type {
   InstagramIntegrationMetadata,
 } from '../modules/integrations/integrations.constants.js'
 import type { OutboundMessageInput, SendMessageResult } from './types.js'
-import { sendInstagramMediaMessage, sendInstagramTextMessage } from './instagram/index.js'
-import { whatsAppConnector } from './whatsapp/index.js'
-import { sendWhatsAppMediaMessage } from './whatsapp/whatsapp.connector.js'
+import { sendInstagramMediaMessage, sendInstagramTextMessage } from './instagram/instagram.connector.js'
+import { sendWhatsAppMediaMessage, sendWhatsAppTextMessage } from './whatsapp/whatsapp.connector.js'
 import { uploadWhatsAppMedia } from './whatsapp/uploadMedia.js'
 import { createMessageMediaSignedUrl, downloadMessageMedia } from '../shared/storage/index.js'
 import { isMediaContentType } from '../modules/inbox/inbox.schemas.js'
@@ -62,7 +61,7 @@ async function dispatchWhatsAppTextMessage(
     throw new AppError(400, 'BAD_REQUEST', 'Conversation channel is not linked to WhatsApp')
   }
 
-  return whatsAppConnector.sendTextMessage({
+  return sendWhatsAppTextMessage({
     to: input.recipientExternalId,
     content: input.content,
     phoneNumberId: (credentials.metadata as WhatsAppIntegrationMetadata).phone_number_id,

@@ -1,7 +1,7 @@
 import { parseGraphApiError } from '../shared/graphErrors.js'
 import { loadEnv } from '../../shared/config/index.js'
 
-export type WhatsAppBusinessProfile = {
+type WhatsAppBusinessProfile = {
   verified_name: string | null
   display_phone_number: string | null
   profile_picture_url: string | null

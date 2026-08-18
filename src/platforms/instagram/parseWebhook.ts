@@ -1,8 +1,8 @@
 import { asRecord, asString } from '../shared/jsonGuards.js'
 
-export type InstagramInboundContentType = 'text' | 'image' | 'video' | 'audio' | 'document'
+type InstagramInboundContentType = 'text' | 'image' | 'video' | 'audio' | 'document'
 
-export type InstagramInboundMessage = {
+type InstagramInboundMessage = {
   businessAccountId: string | null
   from: string
   platformMessageId: string
@@ -15,12 +15,12 @@ export type InstagramInboundMessage = {
   }
 }
 
-export type InstagramOutboundReadReceipt = {
+type InstagramOutboundReadReceipt = {
   businessAccountId: string | null
   platformMessageId: string
 }
 
-export type InstagramOutboundEcho = {
+type InstagramOutboundEcho = {
   businessAccountId: string | null
   to: string
   platformMessageId: string

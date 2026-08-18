@@ -9,7 +9,7 @@ export const MESSAGE_CONTENT_TYPE_VALUES = ['text', 'image', 'video', 'audio', '
 export type MessageDirection = (typeof MESSAGE_DIRECTION_VALUES)[number]
 export type MessageStatus = (typeof MESSAGE_STATUS_VALUES)[number]
 export type MessageContentType = (typeof MESSAGE_CONTENT_TYPE_VALUES)[number]
-export type MediaContentType = Exclude<MessageContentType, 'text'>
+type MediaContentType = Exclude<MessageContentType, 'text'>
 
 const MEDIA_CONTENT_TYPES = new Set<MessageContentType>(['image', 'video', 'audio', 'document'])
 

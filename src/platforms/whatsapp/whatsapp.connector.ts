@@ -1,7 +1,7 @@
 import { parseGraphApiError } from '../shared/graphErrors.js'
 import { loadEnv } from '../../shared/config/index.js'
 import { AppError } from '../../shared/errors/index.js'
-import type { Connector, OutboundMediaContentType, SendMessageResult } from '../types.js'
+import type { OutboundMediaContentType, SendMessageResult } from '../types.js'
 
 type GraphMessagesResponse = {
   messages?: Array<{ id?: string }>
@@ -121,7 +121,3 @@ export async function sendWhatsAppMediaMessage(input: {
   })
 }
 
-export const whatsAppConnector: Connector = {
-  platform: 'whatsapp',
-  sendTextMessage: sendWhatsAppTextMessage,
-}

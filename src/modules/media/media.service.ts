@@ -29,7 +29,7 @@ import {
   type OutboundMediaContentType,
 } from './media.constants.js'
 
-export type StoredInboundMediaResult = {
+type StoredInboundMediaResult = {
   storagePath: string
   mimeType: string
   fileSizeBytes: number
@@ -311,7 +311,7 @@ export async function scheduleInboundMediaRepair(message: {
   logger.info(`Scheduled inbound media repair for message ${message.id}`)
 }
 
-export type StoredOutboundMediaResult = {
+type StoredOutboundMediaResult = {
   storagePath: string
   mimeType: string
   fileSizeBytes: number

@@ -23,7 +23,7 @@ function isMessagingWindowMessage(message: string): boolean {
   )
 }
 
-export function normalizeGraphApiErrorMessage(
+function normalizeGraphApiErrorMessage(
   message: string,
   body?: GraphErrorBody,
 ): string {

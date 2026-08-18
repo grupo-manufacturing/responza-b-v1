@@ -32,11 +32,6 @@ export const INBOUND_DOCUMENT_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ] as const
 
-export type InboundImageMimeType = (typeof INBOUND_IMAGE_MIME_TYPES)[number]
-export type InboundVideoMimeType = (typeof INBOUND_VIDEO_MIME_TYPES)[number]
-export type InboundAudioMimeType = (typeof INBOUND_AUDIO_MIME_TYPES)[number]
-export type InboundDocumentMimeType = (typeof INBOUND_DOCUMENT_MIME_TYPES)[number]
-
 export type InboundMediaContentType = Exclude<MessageContentType, 'text'>
 
 const GENERIC_MIME_TYPES = new Set(['application/octet-stream', 'binary/octet-stream', ''])
@@ -183,18 +178,6 @@ export function normalizeMimeType(mimeType: string): string {
   return mimeType.split(';')[0]?.trim().toLowerCase() ?? ''
 }
 
-export function isAllowedInboundMediaMimeType(
-  contentType: InboundMediaContentType,
-  mimeType: string,
-): boolean {
-  const normalized = normalizeMimeType(mimeType)
-  if (GENERIC_MIME_TYPES.has(normalized)) {
-    return true
-  }
-
-  return ALLOWED_MIME_TYPES_BY_CONTENT_TYPE[contentType].includes(normalized)
-}
-
 export function inferMimeTypeFromFilename(filename: string | null | undefined): string | null {
   if (filename === null || filename === undefined) {
     return null
@@ -287,16 +270,6 @@ export function buildMediaDownloadFilename(input: {
   }
 
   return `attachment.${extension}`
-}
-
-export function isAllowedInboundImageMimeType(
-  mimeType: string,
-): mimeType is InboundImageMimeType {
-  return isAllowedInboundMediaMimeType('image', mimeType)
-}
-
-export function extensionForImageMimeType(mimeType: InboundImageMimeType): string {
-  return extensionForMediaMimeType('image', mimeType)
 }
 
 export function extensionForMediaMimeType(

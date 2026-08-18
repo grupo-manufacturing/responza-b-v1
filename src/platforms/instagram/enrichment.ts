@@ -21,7 +21,7 @@ function participantNeedsInstagramEnrichment(participant: ParticipantRecord): bo
   )
 }
 
-export async function resolveInstagramParticipantPresentation(input: {
+async function resolveInstagramParticipantPresentation(input: {
   platformUserId: string
   accessToken: string
   fallbackDisplayName: string

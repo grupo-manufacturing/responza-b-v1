@@ -1,7 +1,7 @@
 import { loadEnv } from '../../shared/config/index.js'
 import { logger } from '../../shared/logger.js'
 
-export type InstagramParticipantProfile = {
+type InstagramParticipantProfile = {
   username: string | null
   name: string | null
   avatarUrl: string | null

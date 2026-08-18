@@ -10,8 +10,6 @@ export const WEBHOOK_JOB_NAMES = {
   instagram: 'instagram',
 } as const
 
-export type WebhookJobName = (typeof WEBHOOK_JOB_NAMES)[keyof typeof WEBHOOK_JOB_NAMES]
-
 export type WebhookJobData = {
   rawBodyBase64: string
   signatureHeader: string | undefined
