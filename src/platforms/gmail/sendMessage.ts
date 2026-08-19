@@ -2,7 +2,7 @@ import { AppError } from '../../shared/errors/index.js'
 import { gmailApiFetch } from './gmailApi.js'
 import { buildRawGmailMessage } from './buildRawMessage.js'
 
-export type SendGmailMessageInput = {
+type SendGmailMessageInput = {
   from: string
   to: string
   subject: string
@@ -12,7 +12,7 @@ export type SendGmailMessageInput = {
   references?: string
 }
 
-export type SentGmailMessage = {
+type SentGmailMessage = {
   id: string
   threadId: string
 }

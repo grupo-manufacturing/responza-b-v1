@@ -14,7 +14,7 @@ type GoogleTokenResponse = {
   token_type?: string
 }
 
-export type GmailTokenExchangeResult = {
+type GmailTokenExchangeResult = {
   accessToken: string
   refreshToken: string | null
   expiresAt: Date | null

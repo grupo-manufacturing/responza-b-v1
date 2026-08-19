@@ -7,6 +7,11 @@ import { refreshGmailAccessToken } from './refreshAccessToken.js'
 
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000
 
+export type GmailAccessContext = {
+  accessToken: string
+  fromEmail: string
+}
+
 function isTokenExpired(tokenExpiresAt: string | null): boolean {
   if (tokenExpiresAt === null) {
     return true
@@ -20,21 +25,19 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
   return expiresAtMs <= Date.now() + TOKEN_EXPIRY_BUFFER_MS
 }
 
-export async function ensureValidGmailAccessToken(organizationId: string): Promise<string> {
-  const credentials = await getGmailCredentialsForOrganization(organizationId)
-  if (credentials === null) {
+function resolveFromEmail(email: string | undefined): string {
+  const fromEmail = email?.trim() ?? ''
+  if (fromEmail.length === 0) {
     throw new AppError(402, 'INTEGRATIONS_REQUIRED', GMAIL_NOT_CONNECTED_MESSAGE)
   }
 
-  if (!isTokenExpired(credentials.tokenExpiresAt)) {
-    return credentials.accessToken
-  }
+  return fromEmail
+}
 
-  const refreshToken = credentials.refreshToken
-  if (refreshToken === null || refreshToken.trim().length === 0) {
-    return disconnectGmailAndThrowRevoked(organizationId)
-  }
-
+async function refreshStoredAccessToken(
+  organizationId: string,
+  refreshToken: string,
+): Promise<string> {
   try {
     const refreshed = await refreshGmailAccessToken(refreshToken)
     await updateGmailAccessToken(organizationId, {
@@ -49,5 +52,33 @@ export async function ensureValidGmailAccessToken(organizationId: string): Promi
     }
 
     throw error
+  }
+}
+
+export async function ensureGmailAccessContext(organizationId: string): Promise<GmailAccessContext> {
+  const credentials = await getGmailCredentialsForOrganization(organizationId)
+  if (credentials === null) {
+    throw new AppError(402, 'INTEGRATIONS_REQUIRED', GMAIL_NOT_CONNECTED_MESSAGE)
+  }
+
+  const fromEmail = resolveFromEmail(credentials.metadata.email)
+
+  if (!isTokenExpired(credentials.tokenExpiresAt)) {
+    return {
+      accessToken: credentials.accessToken,
+      fromEmail,
+    }
+  }
+
+  const refreshToken = credentials.refreshToken
+  if (refreshToken === null || refreshToken.trim().length === 0) {
+    return disconnectGmailAndThrowRevoked(organizationId)
+  }
+
+  const accessToken = await refreshStoredAccessToken(organizationId, refreshToken)
+
+  return {
+    accessToken,
+    fromEmail,
   }
 }

@@ -1,9 +1,5 @@
 import { AppError } from '../../shared/errors/index.js'
-
-type GmailProfileResponse = {
-  emailAddress?: string
-  historyId?: string
-}
+import { gmailApiFetch } from './gmailApi.js'
 
 type GoogleUserInfoResponse = {
   id?: string
@@ -12,27 +8,13 @@ type GoogleUserInfoResponse = {
   picture?: string
 }
 
-export type GmailProfile = {
-  email: string
-  google_user_id?: string
-  display_name?: string
-  profile_picture_url?: string
-  history_id?: string
+type GmailProfileResponse = {
+  emailAddress?: string
+  historyId?: string
 }
 
-export async function fetchGmailProfile(accessToken: string): Promise<GmailProfile> {
-  const profileResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-
-  if (!profileResponse.ok) {
-    const errorText = await profileResponse.text()
-    throw new AppError(502, 'BAD_REQUEST', `Failed to fetch Gmail profile: ${errorText}`)
-  }
-
-  const profile = (await profileResponse.json()) as GmailProfileResponse
+export async function fetchGmailProfile(accessToken: string) {
+  const profile = await gmailApiFetch<GmailProfileResponse>(accessToken, 'users/me/profile')
   const email = profile.emailAddress?.trim() ?? ''
 
   if (email.length === 0) {

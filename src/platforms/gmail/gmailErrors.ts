@@ -16,18 +16,6 @@ export function isGmailRevokedError(error: unknown): boolean {
   )
 }
 
-export function isGmailNotConnectedError(error: unknown): boolean {
-  return (
-    isAppError(error) &&
-    error.code === 'INTEGRATIONS_REQUIRED' &&
-    error.message === GMAIL_NOT_CONNECTED_MESSAGE
-  )
-}
-
-export function throwGmailUnavailable(): never {
-  throw new AppError(503, 'BAD_REQUEST', GMAIL_UNAVAILABLE_MESSAGE)
-}
-
 export function throwGmailNetworkFailure(): never {
   throw new AppError(503, 'BAD_REQUEST', GMAIL_NETWORK_FAILURE_MESSAGE)
 }

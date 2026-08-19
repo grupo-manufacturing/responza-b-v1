@@ -10,7 +10,7 @@ function foldHeaderLine(name: string, value: string): string {
   return `${name}: ${value}`
 }
 
-export type BuildRawGmailMessageInput = {
+type BuildRawGmailMessageInput = {
   from: string
   to: string
   subject: string

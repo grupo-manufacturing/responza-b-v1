@@ -1,4 +1,4 @@
-export type GmailMessagePart = {
+type GmailMessagePart = {
   mimeType?: string
   body?: {
     data?: string
@@ -22,7 +22,7 @@ export type GmailApiMessage = {
   }
 }
 
-export type ParsedGmailMessage = {
+type ParsedGmailMessage = {
   id: string
   threadId?: string
   from: string

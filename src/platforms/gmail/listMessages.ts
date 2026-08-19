@@ -1,5 +1,6 @@
 import { gmailApiFetch } from './gmailApi.js'
-import { parseGmailMessage, type GmailApiMessage } from './parseMessage.js'
+import { fetchGmailApiMessage } from './fetchGmailApiMessage.js'
+import { parseGmailMessage } from './parseMessage.js'
 
 type GmailMessagesListResponse = {
   messages?: Array<{ id?: string; threadId?: string }>
@@ -7,7 +8,7 @@ type GmailMessagesListResponse = {
   resultSizeEstimate?: number
 }
 
-export type GmailMessageListItem = {
+type GmailMessageListItem = {
   id: string
   from: string
   to: string
@@ -16,7 +17,7 @@ export type GmailMessageListItem = {
   receivedAt: string
 }
 
-export type GmailListMessagesResult = {
+type GmailListMessagesResult = {
   messages: GmailMessageListItem[]
   nextPageToken: string | null
 }
@@ -52,10 +53,7 @@ export async function listGmailInboxMessages(
       detailParams.append('metadataHeaders', 'To')
       detailParams.append('metadataHeaders', 'Subject')
 
-      const message = await gmailApiFetch<GmailApiMessage>(
-        accessToken,
-        `users/me/messages/${encodeURIComponent(id)}?${detailParams.toString()}`,
-      )
+      const message = await fetchGmailApiMessage(accessToken, id, detailParams)
 
       const parsed = parseGmailMessage(message)
       return {
