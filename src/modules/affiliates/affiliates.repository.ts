@@ -36,18 +36,26 @@ const AFFILIATE_COLUMNS = 'id, name, code, is_active, created_at, updated_at'
 const REFERRED_ORG_COLUMNS =
   'id, email, name, plan, subscription_status, trial_started_at, trial_ends_at, subscription_period_starts_at, subscription_period_ends_at, conversation_limit, referred_at, created_at'
 
-export async function listAffiliates(): Promise<AffiliateRecord[]> {
+export async function listAffiliates(input: {
+  page: number
+  limit: number
+}): Promise<{ affiliates: AffiliateRecord[]; total: number }> {
+  const offset = (input.page - 1) * input.limit
   const client = getSupabaseAdminClient()
-  const { data, error } = await client
+  const { data, error, count } = await client
     .from('affiliates')
-    .select(AFFILIATE_COLUMNS)
+    .select(AFFILIATE_COLUMNS, { count: 'exact' })
     .order('created_at', { ascending: false })
+    .range(offset, offset + input.limit - 1)
 
   if (error !== null) {
     throw new AppError(500, 'INTERNAL_ERROR', 'Failed to list affiliates')
   }
 
-  return (data ?? []) as AffiliateRecord[]
+  return {
+    affiliates: (data ?? []) as AffiliateRecord[],
+    total: count ?? 0,
+  }
 }
 
 export async function findAffiliateById(id: string): Promise<AffiliateRecord | null> {

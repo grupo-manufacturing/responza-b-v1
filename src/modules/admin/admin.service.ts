@@ -6,6 +6,8 @@ import {
   verifyAdminCredentials,
 } from '../../shared/admin/session.js'
 import { AppError } from '../../shared/errors/index.js'
+import { buildAdminPagination } from './admin.pagination.js'
+import type { AdminPaginationQuery } from './admin.schemas.js'
 import * as adminRepository from './admin.repository.js'
 
 export function loginAdmin(input: { username: string; password: string }) {
@@ -34,7 +36,7 @@ function daysAgoUtc(days: number, now: Date): Date {
 }
 
 function toSubscriptionRecord(
-  org: adminRepository.AdminOrganizationRecord,
+  org: adminRepository.AdminOrganizationSubscriptionSnapshot | adminRepository.AdminOrganizationRecord,
 ): OrganizationSubscriptionRecord {
   return {
     subscription_status: org.subscription_status as OrganizationSubscriptionRecord['subscription_status'],
@@ -48,14 +50,45 @@ function toSubscriptionRecord(
   }
 }
 
-export async function getAdminDashboard() {
+function buildOverviewCounts(
+  snapshots: adminRepository.AdminOrganizationSubscriptionSnapshot[],
+  now: Date,
+) {
+  let trialCount = 0
+  let activeCount = 0
+  let expiredCount = 0
+
+  for (const org of snapshots) {
+    const effectiveStatus = resolveEffectiveSubscriptionStatus(toSubscriptionRecord(org), now)
+    if (effectiveStatus === 'trialing') trialCount += 1
+    else if (effectiveStatus === 'active') activeCount += 1
+    else expiredCount += 1
+  }
+
+  return {
+    organizationCount: snapshots.length,
+    trialCount,
+    activeCount,
+    expiredCount,
+  }
+}
+
+export async function getAdminDashboard(query: AdminPaginationQuery) {
   const now = new Date()
-  const [organizations, integrations, conversationsToday, conversationsThisWeek] = await Promise.all([
-    adminRepository.listOrganizationsForAdmin(),
-    adminRepository.listConnectedIntegrationsForAdmin(),
-    adminRepository.countConversationsCreatedSince(startOfUtcDay(now).toISOString()),
-    adminRepository.countConversationsCreatedSince(daysAgoUtc(7, now).toISOString()),
-  ])
+  const [subscriptionSnapshots, organizationPage, conversationsToday, conversationsThisWeek] =
+    await Promise.all([
+      adminRepository.listOrganizationSubscriptionSnapshotsForAdmin(),
+      adminRepository.listOrganizationsForAdmin({
+        page: query.page,
+        limit: query.limit,
+      }),
+      adminRepository.countConversationsCreatedSince(startOfUtcDay(now).toISOString()),
+      adminRepository.countConversationsCreatedSince(daysAgoUtc(7, now).toISOString()),
+    ])
+
+  const integrations = await adminRepository.listConnectedIntegrationsForOrganizations(
+    organizationPage.organizations.map((org) => org.id),
+  )
 
   const connectedByOrg = new Map<string, { whatsapp: boolean; instagram: boolean }>()
   for (const row of integrations) {
@@ -69,16 +102,8 @@ export async function getAdminDashboard() {
     connectedByOrg.set(row.organization_id, current)
   }
 
-  let trialCount = 0
-  let activeCount = 0
-  let expiredCount = 0
-
-  const organizationRows = organizations.map((org) => {
+  const organizationRows = organizationPage.organizations.map((org) => {
     const effectiveStatus = resolveEffectiveSubscriptionStatus(toSubscriptionRecord(org), now)
-    if (effectiveStatus === 'trialing') trialCount += 1
-    else if (effectiveStatus === 'active') activeCount += 1
-    else expiredCount += 1
-
     const connected = connectedByOrg.get(org.id) ?? { whatsapp: false, instagram: false }
 
     return {
@@ -87,10 +112,8 @@ export async function getAdminDashboard() {
       name: org.name,
       plan: org.plan,
       status: effectiveStatus,
-      storedStatus: org.subscription_status,
       trialEndsAt: org.trial_ends_at,
       subscriptionPeriodEndsAt: org.subscription_period_ends_at,
-      razorpayCustomerId: org.razorpay_customer_id,
       razorpaySubscriptionId: org.razorpay_subscription_id,
       conversationLimit: org.conversation_limit,
       emailVerified: org.email_verified,
@@ -102,13 +125,11 @@ export async function getAdminDashboard() {
 
   return {
     overview: {
-      organizationCount: organizations.length,
-      trialCount,
-      activeCount,
-      expiredCount,
+      ...buildOverviewCounts(subscriptionSnapshots, now),
       conversationsToday,
       conversationsThisWeek,
     },
     organizations: organizationRows,
+    pagination: buildAdminPagination(query.page, query.limit, organizationPage.total),
   }
 }

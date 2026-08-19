@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { createAffiliatesAdminRouter } from '../affiliates/affiliates.routes.js'
 import { requireAdminMiddleware } from '../../shared/middleware/index.js'
 import { validateRequest } from '../../shared/middleware/validateRequest.js'
+import { adminPaginationQuerySchema } from './admin.schemas.js'
 import * as adminService from './admin.service.js'
 
 const adminLoginBodySchema = z.object({
@@ -23,18 +24,19 @@ export function createAdminRouter(): Router {
     }
   })
 
-  router.get('/me', requireAdminMiddleware, (req, res) => {
-    res.status(200).json({ username: req.admin!.username })
-  })
-
-  router.get('/dashboard', requireAdminMiddleware, (_req, res, next) => {
-    void adminService
-      .getAdminDashboard()
-      .then((result) => {
-        res.status(200).json(result)
-      })
-      .catch(next)
-  })
+  router.get(
+    '/dashboard',
+    requireAdminMiddleware,
+    validateRequest({ query: adminPaginationQuerySchema }),
+    (req, res, next) => {
+      void adminService
+        .getAdminDashboard(req.query as unknown as z.infer<typeof adminPaginationQuerySchema>)
+        .then((result) => {
+          res.status(200).json(result)
+        })
+        .catch(next)
+    },
+  )
 
   router.use('/affiliates', createAffiliatesAdminRouter())
 

@@ -1,3 +1,5 @@
+import { buildAdminPagination } from '../admin/admin.pagination.js'
+import type { AdminPaginationQuery } from '../admin/admin.schemas.js'
 import { resolveEffectiveSubscriptionStatus } from '../../shared/subscription/index.js'
 import type { OrganizationSubscriptionRecord } from '../../shared/subscription/index.js'
 import { AppError } from '../../shared/errors/index.js'
@@ -37,12 +39,11 @@ function toSubscriptionRecord(
   }
 }
 
-export async function listAffiliates() {
-  const affiliates = await affiliatesRepository.listAffiliates()
+async function buildAffiliateListResponses(affiliates: affiliatesRepository.AffiliateRecord[]) {
   const counts = await affiliatesRepository.countReferralsByAffiliateIds(affiliates.map((row) => row.id))
-
   const now = new Date()
-  const responses = await Promise.all(
+
+  return Promise.all(
     affiliates.map(async (affiliate) => {
       const referralCount = counts.get(affiliate.id) ?? 0
       let activePaidReferralCount = 0
@@ -57,8 +58,19 @@ export async function listAffiliates() {
       return toAffiliateResponse(affiliate, referralCount, activePaidReferralCount)
     }),
   )
+}
 
-  return { affiliates: responses }
+export async function listAffiliates(query: AdminPaginationQuery) {
+  const affiliatePage = await affiliatesRepository.listAffiliates({
+    page: query.page,
+    limit: query.limit,
+  })
+  const affiliates = await buildAffiliateListResponses(affiliatePage.affiliates)
+
+  return {
+    affiliates,
+    pagination: buildAdminPagination(query.page, query.limit, affiliatePage.total),
+  }
 }
 
 export async function createAffiliate(input: CreateAffiliateBody) {

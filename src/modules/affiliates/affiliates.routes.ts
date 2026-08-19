@@ -1,5 +1,7 @@
 import { Router } from 'express'
+import { z } from 'zod'
 
+import { adminPaginationQuerySchema } from '../admin/admin.schemas.js'
 import { requireAdminMiddleware } from '../../shared/middleware/index.js'
 import { validateRequest } from '../../shared/middleware/validateRequest.js'
 import * as affiliatesService from './affiliates.service.js'
@@ -14,9 +16,9 @@ export function createAffiliatesAdminRouter(): Router {
 
   router.use(requireAdminMiddleware)
 
-  router.get('/', (_req, res, next) => {
+  router.get('/', validateRequest({ query: adminPaginationQuerySchema }), (req, res, next) => {
     void affiliatesService
-      .listAffiliates()
+      .listAffiliates(req.query as unknown as z.infer<typeof adminPaginationQuerySchema>)
       .then((result) => {
         res.status(200).json(result)
       })
