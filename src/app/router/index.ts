@@ -4,7 +4,7 @@ import { createAdminRouter } from '../../modules/admin/admin.routes.js'
 import { createAiRouter } from '../../modules/ai/ai.routes.js'
 import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
 import { createBusinessRouter } from '../../modules/business/business.routes.js'
-import { createDashboardRouter } from '../../modules/dashboard/dashboard.routes.js'
+import { createAssistantRouter } from '../../modules/assistant/assistant.routes.js'
 import { createConversationsRouter } from '../../modules/inbox/inbox.routes.js'
 import { createGmailRouter } from '../../modules/gmail/gmail.routes.js'
 import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
@@ -51,7 +51,7 @@ export function createAppRouter(): Router {
 
   const paidPlanRouter = Router()
   paidPlanRouter.use(requirePaidSubscriptionMiddleware)
-  paidPlanRouter.use('/dashboard', createDashboardRouter())
+  paidPlanRouter.use('/assistant', createAssistantRouter())
   subscriptionGatedRouter.use(paidPlanRouter)
 
   protectedApiRouter.use(subscriptionGatedRouter)
