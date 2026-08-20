@@ -17,20 +17,7 @@ function addDays(from: Date, days: number): Date {
   return result
 }
 
-export async function findOrganizationById(organizationId: string): Promise<OrganizationRecord | null> {
-  const client = getSupabaseAdminClient()
-  const { data, error } = await client
-    .from('organizations')
-    .select(ORGANIZATION_COLUMNS)
-    .eq('id', organizationId)
-    .maybeSingle()
-
-  if (error !== null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to load organization account')
-  }
-
-  return data as OrganizationRecord | null
-}
+export { findOrganizationById } from '../subscription/subscription.repository.js'
 
 export async function findOrganizationByEmail(email: string): Promise<OrganizationRecord | null> {
   const client = getSupabaseAdminClient()

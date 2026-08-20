@@ -4,11 +4,11 @@ export {
   isBillingPlanKey,
   isRazorpayBillingConfigured,
   isRazorpayConfigured,
-  listBillingPlans,
   listBillingPlansPublic,
   resolveBillingPlan,
   resolveBillingPlanKeyByRazorpayPlanId,
   resolveRazorpaySubscriptionTotalCount,
+  toBillingPlanPublic,
   type BillingPlan,
   type BillingPlanCatalogEntry,
   type BillingPlanKey,
@@ -17,7 +17,5 @@ export {
 export {
   cancelOrganizationSubscription,
   createCheckoutSubscription,
-  ensureRazorpayCustomer,
-  getOrganizationRazorpaySubscription,
 } from './razorpay.billing.js'
 export { createRazorpayWebhookRouter } from './razorpay.webhook.routes.js'

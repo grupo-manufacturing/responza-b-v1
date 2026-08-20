@@ -26,7 +26,7 @@ function assertBillingReady(): void {
   }
 }
 
-export async function ensureRazorpayCustomer(
+async function ensureRazorpayCustomer(
   organization: OrganizationRecord,
 ): Promise<OrganizationRecord> {
   assertBillingReady()
@@ -162,7 +162,7 @@ export async function cancelOrganizationSubscription(
   return { organization, subscription }
 }
 
-export async function getOrganizationRazorpaySubscription(organizationId: string) {
+async function getOrganizationRazorpaySubscription(organizationId: string) {
   assertBillingReady()
 
   const organization = await subscriptionRepository.findOrganizationById(organizationId)

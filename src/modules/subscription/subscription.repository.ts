@@ -29,45 +29,6 @@ export async function findOrganizationById(organizationId: string): Promise<Orga
   return data as OrganizationRecord | null
 }
 
-export async function activatePaidSubscription(
-  organizationId: string,
-  input: {
-    plan: string
-    conversationLimit: number
-    periodStartsAt: string
-    periodEndsAt: string
-    endTrial?: boolean
-  },
-): Promise<OrganizationRecord> {
-  const client = getSupabaseAdminClient()
-  const now = new Date().toISOString()
-  const update: Record<string, unknown> = {
-    subscription_status: 'active',
-    plan: input.plan,
-    conversation_limit: input.conversationLimit,
-    subscription_period_starts_at: input.periodStartsAt,
-    subscription_period_ends_at: input.periodEndsAt,
-    updated_at: now,
-  }
-
-  if (input.endTrial === true) {
-    update.trial_ends_at = now
-  }
-
-  const { data, error } = await client
-    .from('organizations')
-    .update(update)
-    .eq('id', organizationId)
-    .select(ORGANIZATION_COLUMNS)
-    .single()
-
-  if (error !== null || data === null) {
-    throw new AppError(500, 'INTERNAL_ERROR', 'Failed to activate subscription')
-  }
-
-  return data as OrganizationRecord
-}
-
 export async function markSubscriptionExpired(organizationId: string): Promise<void> {
   const client = getSupabaseAdminClient()
   const { error } = await client

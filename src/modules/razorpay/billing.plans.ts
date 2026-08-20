@@ -109,19 +109,15 @@ export function resolveBillingPlan(env: Env, key: BillingPlanKey): BillingPlan {
   }
 }
 
-export function listBillingPlans(env: Env): BillingPlan[] {
-  return BILLING_PLAN_KEYS.map((key) => resolveBillingPlan(env, key))
-}
-
-export function listBillingPlansPublic(): BillingPlanPublic[] {
-  return BILLING_PLAN_KEYS.map((key) => toBillingPlanPublic(BILLING_PLAN_CATALOG[key]))
-}
-
-function toBillingPlanPublic(plan: BillingPlanCatalogEntry): BillingPlanPublic {
+export function toBillingPlanPublic(plan: BillingPlanCatalogEntry): BillingPlanPublic {
   return {
     ...plan,
     amountInr: plan.amountPaise / 100,
   }
+}
+
+export function listBillingPlansPublic(): BillingPlanPublic[] {
+  return BILLING_PLAN_KEYS.map((key) => toBillingPlanPublic(BILLING_PLAN_CATALOG[key]))
 }
 
 const RAZORPAY_MAX_SUBSCRIPTION_TOTAL_COUNT: Record<BillingPlanInterval, number> = {

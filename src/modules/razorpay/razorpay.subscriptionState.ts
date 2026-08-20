@@ -17,7 +17,7 @@ function unixToIso(unix: number | null | undefined): string | null {
   return new Date(unix * 1000).toISOString()
 }
 
-function readNoteValue(notes: Record<string, string> | null | undefined, key: string): string | null {
+export function readNoteValue(notes: Record<string, string> | null | undefined, key: string): string | null {
   const value = notes?.[key]
   if (typeof value !== 'string' || value.trim().length === 0) {
     return null

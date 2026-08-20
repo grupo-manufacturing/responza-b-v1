@@ -7,6 +7,7 @@ import {
   isRazorpayBillingConfigured,
   isRazorpayConfigured,
   listBillingPlansPublic,
+  toBillingPlanPublic,
   type BillingPlanKey,
 } from '../razorpay/billing.plans.js'
 import * as razorpayBilling from '../razorpay/razorpay.billing.js'
@@ -14,9 +15,6 @@ import * as subscriptionCache from './subscription.cache.js'
 import type { SubscriptionCachePayload } from './subscription.cache.js'
 import * as subscriptionRepository from './subscription.repository.js'
 import * as usageService from './usage.service.js'
-
-export { invalidateSubscriptionCache } from './subscription.cache.js'
-export type { SubscriptionCachePayload } from './subscription.cache.js'
 
 async function loadSubscriptionForOrganization(
   organizationId: string,
@@ -76,19 +74,6 @@ export function getBillingPlansCatalog() {
   }
 }
 
-function toCheckoutPlanResponse(planKey: BillingPlanKey) {
-  const plan = getBillingPlanCatalogEntry(planKey)
-  return {
-    key: plan.key,
-    label: plan.label,
-    conversationLimit: plan.conversationLimit,
-    amountPaise: plan.amountPaise,
-    amountInr: plan.amountPaise / 100,
-    currency: plan.currency,
-    interval: plan.interval,
-  }
-}
-
 export async function createSubscriptionCheckout(organizationId: string, planKey: BillingPlanKey) {
   const result = await razorpayBilling.createCheckoutSubscription({
     organizationId,
@@ -97,7 +82,7 @@ export async function createSubscriptionCheckout(organizationId: string, planKey
 
   return {
     checkout: result.checkout,
-    plan: toCheckoutPlanResponse(planKey),
+    plan: toBillingPlanPublic(getBillingPlanCatalogEntry(planKey)),
   }
 }
 

@@ -7,6 +7,7 @@ import { invalidateSubscriptionCache } from '../subscription/subscription.cache.
 import { recordWebhookEventIfNew } from './razorpay-webhook.repository.js'
 import {
   applyActiveSubscriptionFromRazorpay,
+  readNoteValue,
   resolveBillingPeriodFromSubscription,
   resolvePlanKeyFromSubscription,
 } from './razorpay.subscriptionState.js'
@@ -21,15 +22,6 @@ type RazorpayWebhookPayload = {
       readonly entity?: RazorpaySubscription
     }
   }
-}
-
-function readNoteValue(notes: Record<string, string> | null | undefined, key: string): string | null {
-  const value = notes?.[key]
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    return null
-  }
-
-  return value.trim()
 }
 
 async function resolveOrganization(
