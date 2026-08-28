@@ -72,11 +72,12 @@ const envSchema = z.object({
   KNOWLEDGE_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(180000),
   KNOWLEDGE_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).default('message-media'),
-  /** Admin dashboard login (separate from organization accounts). */
   ADMIN_USERNAME: z.string().default(''),
   ADMIN_PASSWORD: z.string().default(''),
-  /** Optional. If empty, a key is derived from ADMIN_USERNAME + ADMIN_PASSWORD. */
   ADMIN_SESSION_SECRET: z.string().default(''),
+  RESEND_API_KEY: z.string().default(''),
+  RESEND_FROM_EMAIL: z.string().default(''),
+  FRONTEND_PUBLIC_URL: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>

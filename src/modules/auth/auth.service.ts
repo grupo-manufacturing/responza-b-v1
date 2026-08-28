@@ -7,6 +7,7 @@ import {
 import { getSupabaseAdminClient, getSupabaseAuthClient } from '../../shared/database/index.js'
 import { AppError } from '../../shared/errors/index.js'
 import { getSubscriptionForOrganization } from '../subscription/subscription.service.js'
+import { queueWelcomeEmail } from '../email/index.js'
 import { TRANSLATION_LANGUAGES } from '../ai/ai.constants.js'
 import * as authCache from './auth.cache.js'
 import * as authRepository from './auth.repository.js'
@@ -144,6 +145,14 @@ function resolveOrganizationNameFromUserMetadata(
   return 'My Organization'
 }
 
+function scheduleWelcomeEmail(organization: Pick<OrganizationRecord, 'id' | 'email' | 'name'>): void {
+  queueWelcomeEmail({
+    organizationId: organization.id,
+    email: organization.email,
+    name: organization.name,
+  })
+}
+
 async function buildSessionPayload(
   accessToken: string,
   refreshToken: string,
@@ -249,6 +258,7 @@ export async function registerOrganization(
 
   if (data.session !== null) {
     const verifiedOrganization = await authRepository.markOrganizationEmailVerified(organization.id)
+    scheduleWelcomeEmail(verifiedOrganization)
     return buildSessionPayload(
       data.session.access_token,
       data.session.refresh_token,
@@ -281,6 +291,10 @@ export async function verifyEmailOtp(input: VerifyOtpBody): Promise<AuthSessionP
   const verifiedOrganization = organization.email_verified
     ? organization
     : await authRepository.markOrganizationEmailVerified(organization.id)
+
+  if (!organization.email_verified) {
+    scheduleWelcomeEmail(verifiedOrganization)
+  }
 
   return buildSessionPayload(
     data.session.access_token,
@@ -345,6 +359,7 @@ export async function completeOAuthSession(
       emailVerified: true,
     })
     await authRepository.createBusinessProfile(organization.id)
+    scheduleWelcomeEmail(organization)
   } else if (!organization.email_verified) {
     organization = await authRepository.markOrganizationEmailVerified(organization.id)
   }
