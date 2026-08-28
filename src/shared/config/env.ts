@@ -75,9 +75,6 @@ const envSchema = z.object({
   ADMIN_USERNAME: z.string().default(''),
   ADMIN_PASSWORD: z.string().default(''),
   ADMIN_SESSION_SECRET: z.string().default(''),
-  RESEND_API_KEY: z.string().default(''),
-  RESEND_FROM_EMAIL: z.string().default(''),
-  FRONTEND_PUBLIC_URL: z.string().default(''),
 })
 
 export type Env = z.infer<typeof envSchema>
