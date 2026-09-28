@@ -4,6 +4,7 @@ import {
 } from '../../shared/queue/index.js'
 import { assertInstagramWebhookSignature } from './handlers/instagram.handler.js'
 import { assertWhatsAppWebhookSignature } from './handlers/whatsapp.handler.js'
+import { relayInstagramWebhook } from './instagram.relay.js'
 
 type WebhookEnqueueInput = {
   rawBody: Buffer
@@ -19,4 +20,5 @@ export async function enqueueWhatsAppWebhook(input: WebhookEnqueueInput): Promis
 export async function enqueueInstagramWebhook(input: WebhookEnqueueInput): Promise<void> {
   assertInstagramWebhookSignature(input)
   await enqueueInstagramWebhookJob(input)
+  relayInstagramWebhook(input)
 }
