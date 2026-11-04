@@ -1,5 +1,0 @@
-export * from './repositories/types.js'
-export * from './repositories/channel.repository.js'
-export * from './repositories/conversation.repository.js'
-export * from './repositories/participant.repository.js'
-export * from './repositories/message.repository.js'

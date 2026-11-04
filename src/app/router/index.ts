@@ -1,63 +1,11 @@
 import { Router } from 'express'
 
-import { createAdminRouter } from '../../modules/admin/admin.routes.js'
-import { createAiRouter } from '../../modules/ai/ai.routes.js'
-import { createAuthProtectedRouter, createAuthPublicRouter } from '../../modules/auth/auth.routes.js'
-import { createBusinessRouter } from '../../modules/business/business.routes.js'
-import { createAssistantRouter } from '../../modules/assistant/assistant.routes.js'
-import { createConversationsRouter } from '../../modules/inbox/inbox.routes.js'
-import { createGmailRouter } from '../../modules/gmail/gmail.routes.js'
-import { createIntegrationsRouter } from '../../modules/integrations/integrations.routes.js'
-import { createInstagramOAuthRouter } from '../../modules/integrations/oauth/instagram.routes.js'
-import { createGmailOAuthRouter } from '../../modules/integrations/oauth/gmail.routes.js'
-import { createKnowledgeRouter } from '../../modules/knowledge/knowledge.routes.js'
-import { createMessagingRouter } from '../../modules/messaging/messaging.routes.js'
-import { createRazorpayWebhookRouter } from '../../modules/razorpay/razorpay.webhook.routes.js'
-import { createSubscriptionRouter } from '../../modules/subscription/subscription.routes.js'
-import {
-  authenticateMiddleware,
-  requireActiveSubscriptionMiddleware,
-  requirePaidSubscriptionMiddleware,
-} from '../../shared/middleware/index.js'
 import { healthRouter } from './health.routes.js'
 
 export function createAppRouter(): Router {
   const router = Router()
 
   router.use(healthRouter)
-  router.use('/auth', createInstagramOAuthRouter())
-  router.use('/auth', createGmailOAuthRouter())
-  router.use('/webhooks', createMessagingRouter())
-  router.use('/webhooks/razorpay', createRazorpayWebhookRouter())
-
-  const apiRouter = Router()
-
-  apiRouter.use('/auth', createAuthPublicRouter())
-  apiRouter.use('/admin', createAdminRouter())
-
-  const protectedApiRouter = Router()
-  protectedApiRouter.use(authenticateMiddleware)
-  protectedApiRouter.use('/auth', createAuthProtectedRouter())
-  protectedApiRouter.use('/subscription', createSubscriptionRouter())
-
-  const subscriptionGatedRouter = Router()
-  subscriptionGatedRouter.use(requireActiveSubscriptionMiddleware)
-  subscriptionGatedRouter.use('/business', createBusinessRouter())
-  subscriptionGatedRouter.use('/integrations', createIntegrationsRouter())
-  subscriptionGatedRouter.use('/gmail', createGmailRouter())
-  subscriptionGatedRouter.use('/conversations', createConversationsRouter())
-  subscriptionGatedRouter.use('/ai', createAiRouter())
-  subscriptionGatedRouter.use('/knowledge', createKnowledgeRouter())
-
-  const paidPlanRouter = Router()
-  paidPlanRouter.use(requirePaidSubscriptionMiddleware)
-  paidPlanRouter.use('/assistant', createAssistantRouter())
-  subscriptionGatedRouter.use(paidPlanRouter)
-
-  protectedApiRouter.use(subscriptionGatedRouter)
-
-  apiRouter.use(protectedApiRouter)
-  router.use('/api', apiRouter)
 
   return router
 }

@@ -1,6 +1,6 @@
 import compression from 'compression'
 import cors from 'cors'
-import express, { type Express, type Request } from 'express'
+import express, { type Express } from 'express'
 import helmet from 'helmet'
 
 import { getCorsOrigins, loadEnv } from '../shared/config/index.js'
@@ -35,17 +35,7 @@ export function createApp(): Express {
       credentials: true,
     }),
   )
-  app.use(
-    express.json({
-      limit: '1mb',
-      verify: (req, _res, buf) => {
-        const request = req as Request
-        if (request.originalUrl.startsWith('/webhooks')) {
-          request.rawBody = buf
-        }
-      },
-    }),
-  )
+  app.use(express.json({ limit: '1mb' }))
   app.use(requestTimeoutMiddleware)
   app.use(createAppRouter())
   app.use(notFoundHandler)
