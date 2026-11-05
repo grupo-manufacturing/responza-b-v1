@@ -3,6 +3,8 @@ import { resolve } from 'node:path'
 import { config as loadDotenv } from 'dotenv'
 import { z } from 'zod'
 
+const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -10,6 +12,8 @@ const envSchema = z.object({
   HTTP_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   SHUTDOWN_GRACE_MS: z.coerce.number().int().positive().default(10000),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  SUPABASE_SERVICE_ROLE_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
 })
 
 export type Env = z.infer<typeof envSchema>

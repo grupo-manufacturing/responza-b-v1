@@ -35,7 +35,7 @@ export function createApp(): Express {
       credentials: true,
     }),
   )
-  app.use(express.json({ limit: '1mb' }))
+  app.use(express.json({ limit: '16kb' }))
   app.use(requestTimeoutMiddleware)
   app.use(createAppRouter())
   app.use(notFoundHandler)
