@@ -14,6 +14,7 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   SUPABASE_SERVICE_ROLE_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  ADMIN_TOKEN: z.preprocess(emptyToUndefined, z.string().min(16).optional()),
 })
 
 export type Env = z.infer<typeof envSchema>
